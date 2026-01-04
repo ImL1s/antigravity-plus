@@ -95,4 +95,4 @@ jobs:
         if: env.OVSX_PAT != ''
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish -p antigravity-plus.vsix -t $OVSX_PAT
+        run: npx ovsx publish antigravity-plus.vsix -p $OVSX_PAT
