@@ -6,6 +6,32 @@ const Mocha = require('mocha');
 const path = require('path');
 const fs = require('fs');
 
+// Mock VS Code module for Node.js environment
+const Module = require('module');
+const originalRequire = Module.prototype.require;
+
+Module.prototype.require = function (path) {
+    if (path === 'vscode') {
+        return {
+            window: {
+                createOutputChannel: () => ({
+                    appendLine: () => { },
+                    show: () => { },
+                    dispose: () => { }
+                }),
+                showErrorMessage: () => { },
+                showInformationMessage: () => { },
+            },
+            workspace: {
+                getConfiguration: () => ({ get: () => { } }),
+            },
+            Disposable: class { dispose() { } },
+            EventEmitter: require('events').EventEmitter
+        };
+    }
+    return originalRequire.apply(this, arguments);
+};
+
 const mocha = new Mocha({
     ui: 'bdd',  // 使用 BDD 介面 (describe, it)
     color: true,

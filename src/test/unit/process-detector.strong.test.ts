@@ -21,42 +21,28 @@ const mockExecutor = async (cmd: string, opts: any) => {
     return { stdout: mockExecOutput, stderr: '' };
 };
 
-// Mock HTTP (still need Module mock for internal requires inside ProcessDetector?)
-// Actually ProcessDetector uses require('http') inside testPort.
-// Since testPort is private, we can't easily inject http client without more refactoring.
-// BUT, we can mock `testPort` method itself or rely on the previous module mock strategy 
-// WHICH MIGHT STILL FAIL if require is not intercepted.
-// Let's try to intercept require('http') again, or just overwrite the private method `testPort` on the instance if possible.
-// Overwriting private method is easier for this specific "Strong" test without huge refactor.
-
-const Module = require('module');
-const originalRequire = Module.prototype.require;
-Module.prototype.require = function (path: string) {
-    if (path === 'http') {
-        return {
-            request: (opts: any, cb: any) => {
-                const res: any = {
-                    on: (event: string, handler: Function) => {
-                        if (event === 'data') {
-                            const data = mockHttpResponses[opts.port];
-                            if (data) handler(JSON.stringify(data));
-                        }
-                        if (event === 'end') handler();
-                    }
-                };
-                setTimeout(() => cb(res), 10);
-                return { on: () => { }, end: () => { }, destroy: () => { } };
+// Mock HttpClient
+const mockHttpClient = {
+    request: (opts: any, cb: any) => {
+        const res: any = {
+            on: (event: string, handler: any) => {
+                if (event === 'data') {
+                    const data = mockHttpResponses[opts.port];
+                    if (data) handler(JSON.stringify(data));
+                }
+                if (event === 'end') handler();
             }
         };
+        setTimeout(() => cb(res), 10);
+        return { on: () => { }, end: () => { }, destroy: () => { } };
     }
-    return originalRequire.apply(this, arguments);
 };
 
 describe('ProcessDetector Robust Tests', () => {
     let detector: ProcessDetector;
 
     beforeEach(() => {
-        detector = new ProcessDetector(mockLogger as any, mockExecutor);
+        detector = new ProcessDetector(mockLogger as any, mockExecutor, mockHttpClient);
         mockExecOutput = '';
         mockHttpResponses = {};
     });

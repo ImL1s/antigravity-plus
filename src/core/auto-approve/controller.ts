@@ -124,11 +124,11 @@ export class AutoApproveController implements vscode.Disposable {
     private async executePesoszStrategy() {
         try {
             await vscode.commands.executeCommand('antigravity.agent.acceptAgentStep');
-        } catch (e) { }
+        } catch (e) { void (e); }
 
         try {
             await vscode.commands.executeCommand('antigravity.terminal.accept');
-        } catch (e) { }
+        } catch (e) { void (e); }
     }
 
     /**
@@ -137,7 +137,7 @@ export class AutoApproveController implements vscode.Disposable {
     private async executeNativeStrategy() {
         try {
             await vscode.commands.executeCommand('editor.action.inlineSuggest.commit');
-        } catch (e) { }
+        } catch (e) { void (e); }
     }
 
     /**

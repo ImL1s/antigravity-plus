@@ -139,16 +139,16 @@ export const FULL_CDP_SCRIPT = `
                 try {
                     const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
                     if (iframeDoc) docs.push(...getDocuments(iframeDoc));
-                } catch (e) { }
+                } catch (e) { void(e); }
             }
-        } catch (e) { }
+        } catch (e) { void(e); }
         return docs;
     };
 
     const queryAll = (selector) => {
         const results = [];
         getDocuments().forEach(doc => {
-            try { results.push(...Array.from(doc.querySelectorAll(selector))); } catch (e) { }
+            try { results.push(...Array.from(doc.querySelectorAll(selector))); } catch (e) { void(e); }
         });
         return results;
     };

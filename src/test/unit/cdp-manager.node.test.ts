@@ -44,9 +44,9 @@ class MockWebSocket extends EventEmitter {
 // Mock Require for HTTP only (since CDPManager uses http)
 const Module = require('module');
 const originalRequire = Module.prototype.require;
-Module.prototype.require = function (path: string) {
+Module.prototype.require = function (path: string, ...args: any[]) {
     if (path === 'http') return mockHttp;
-    return originalRequire.apply(this, arguments);
+    return originalRequire.apply(this, [path, ...args]);
 };
 
 // Import code under test

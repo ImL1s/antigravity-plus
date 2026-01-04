@@ -9,6 +9,7 @@
 import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as http from 'http';
 import { Logger } from '../../utils/logger';
 
 const execAsync = promisify(exec);
@@ -25,8 +26,9 @@ export class ProcessDetector {
     private readonly COMMON_PORTS = [9222, 9333, 9444, 3000, 3001, 8080, 8888];
     private executor: CommandExecutor;
 
-    constructor(private logger: Logger, executor?: CommandExecutor) {
+    constructor(private logger: Logger, executor?: CommandExecutor, private httpClient?: any) {
         this.executor = executor || execAsync;
+        this.httpClient = httpClient || http;
     }
 
     /**
@@ -198,8 +200,6 @@ export class ProcessDetector {
      */
     private async testPort(port: number, pid?: number): Promise<AntigravityProcess | null> {
         return new Promise((resolve) => {
-            const http = require('http');
-
             const options = {
                 hostname: 'localhost',
                 port: port,
@@ -208,7 +208,7 @@ export class ProcessDetector {
                 timeout: 2000
             };
 
-            const req = http.request(options, (res: any) => {
+            const req = this.httpClient.request(options, (res: any) => {
                 let data = '';
                 res.on('data', (chunk: string) => data += chunk);
                 res.on('end', () => {
