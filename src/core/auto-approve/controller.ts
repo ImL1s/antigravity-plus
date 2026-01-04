@@ -97,7 +97,7 @@ export class AutoApproveController implements vscode.Disposable {
         }, intervalMs);
     }
 
-    private async poll() {
+    protected async poll() {
         if (!this.enabled || this.isDisposed) {
             return;
         }

@@ -32,5 +32,14 @@ export default defineConfig([
             ui: 'tdd',
             timeout: 60000
         }
+    },
+    {
+        label: 'integration',
+        files: 'out/test/integration/**/*.test.js',
+        version: 'stable',
+        mocha: {
+            ui: 'tdd',
+            timeout: 20000
+        }
     }
 ]);

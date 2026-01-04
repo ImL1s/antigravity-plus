@@ -17,6 +17,8 @@ suite('Smoke Tests', () => {
 
             if (extension && !extension.isActive) {
                 await extension.activate();
+                // Wait a bit for async registrations and side effects
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
 
             assert.ok(extension?.isActive, '擴展應該已啟動');

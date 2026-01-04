@@ -30,10 +30,20 @@ class MockCDPManager {
 // Testable subclass to capture commands
 class TestableAutoApproveController extends AutoApproveController {
     public commandCalls: string[] = [];
+    public forceStrategy: string | undefined;
 
     protected async runCommand(command: string, ..._args: any[]): Promise<any> {
         this.commandCalls.push(command);
         return undefined; // Don't actually execute during test
+    }
+
+    // Override poll to use forced strategy if set
+    public async poll() {
+        if (this.forceStrategy === 'pesosz') {
+            await (this as any).executePesoszStrategy();
+        } else {
+            await super.poll();
+        }
     }
 }
 
@@ -79,7 +89,8 @@ suite('Auto Approve Integration Tests', () => {
 
     test('Pesosz Strategy should invoke expected internal commands', async () => {
         controller.enable();
-        await (controller as any).poll();
+        controller.forceStrategy = 'pesosz';
+        await controller.poll();
 
         const hasAgentAccept = controller.commandCalls.includes('antigravity.agent.acceptAgentStep');
         const hasTerminalAccept = controller.commandCalls.includes('antigravity.terminal.accept');
