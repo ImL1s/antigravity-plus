@@ -19,10 +19,15 @@ export interface AntigravityProcess {
     authToken?: string;
 }
 
+export type CommandExecutor = (command: string, options?: any) => Promise<{ stdout: string, stderr: string }>;
+
 export class ProcessDetector {
     private readonly COMMON_PORTS = [9222, 9333, 9444, 3000, 3001, 8080, 8888];
+    private executor: CommandExecutor;
 
-    constructor(private logger: Logger) { }
+    constructor(private logger: Logger, executor?: CommandExecutor) {
+        this.executor = executor || execAsync;
+    }
 
     /**
      * 偵測 Antigravity 進程
@@ -52,57 +57,81 @@ export class ProcessDetector {
 
     /**
      * Windows 平台偵測
+     * 模擬 competitor-cockpit/hunter.ts 的 WMI 查詢策略
      */
     private async detectWindows(): Promise<AntigravityProcess | null> {
         try {
-            // 使用 wmic 查找 Antigravity 相關進程
-            const { stdout } = await execAsync(
-                `wmic process where "name like '%antigravity%' or name like '%code%'" get processid,commandline /format:csv`,
-                { timeout: 10000 }
+            // 擴大搜尋範圍，包含 code.exe, electron.exe 和潛在的 antigravity process
+            const { stdout } = await this.executor(
+                `wmic process where "name like '%code%' or name like '%electron%' or name like '%antigravity%'" get processid,commandline /format:csv`,
+                { timeout: 15000 }
             );
 
-            const lines = stdout.trim().split('\n').filter(line => line.includes(','));
+            const lines = stdout.trim().split('\n');
+            const candidates: { pid: number, port: number }[] = [];
 
             for (const line of lines) {
-                const parts = line.split(',');
-                if (parts.length >= 3) {
-                    const cmdLine = parts[1];
-                    const pid = parseInt(parts[2]);
+                if (!line.trim() || line.startsWith('Node,')) continue;
 
-                    // 嘗試從命令列提取端口
+                // CSV 格式通常是: Node,CommandLine,ProcessId
+                // 部分系統可能是: Node,ProcessId,CommandLine
+                const parts = line.split(',');
+                if (parts.length < 2) continue;
+
+                // 嘗試找尋 Command Line 部分 (通常比較長)
+                const cmdLine = parts.find(p => p.includes('--remote-debugging-port')) || '';
+                const pidStr = parts[parts.length - 1]; // PID 通常在最後
+
+                if (cmdLine) {
                     const portMatch = cmdLine.match(/--remote-debugging-port=(\d+)/);
                     if (portMatch) {
                         const port = parseInt(portMatch[1]);
-                        const process = await this.testPort(port, pid);
-                        if (process) return process;
+                        const pid = parseInt(pidStr) || 0;
+                        candidates.push({ pid, port });
                     }
+                }
+            }
+
+            this.logger.debug(`Windows 掃描發現 ${candidates.length} 個候選進程`);
+
+            // 驗證所有候選者
+            for (const cand of candidates) {
+                const process = await this.testPort(cand.port, cand.pid);
+                if (process) {
+                    this.logger.info(`驗證成功: PID ${cand.pid} Port ${cand.port}`);
+                    return process;
                 }
             }
         } catch (error) {
             this.logger.debug(`Windows wmic 偵測失敗: ${error}`);
         }
 
-        // 備用方案：嘗試常見端口
         return this.tryCommonPorts();
     }
 
     /**
      * macOS 平台偵測
+     * 模擬 competitor-cockpit/hunter.ts 的 ps aux 策略
      */
     private async detectMac(): Promise<AntigravityProcess | null> {
         try {
-            const { stdout } = await execAsync(
-                `ps aux | grep -E "(antigravity|Antigravity)" | grep -v grep`,
-                { timeout: 10000 }
+            // 使用 grep 排除 grep 自身，並查找包含 debugging-port 的進程
+            const { stdout } = await this.executor(
+                `ps aux | grep "\\--remote-debugging-port=" | grep -v grep`,
+                { timeout: 15000 }
             );
 
             const lines = stdout.trim().split('\n').filter(Boolean);
 
             for (const line of lines) {
-                const parts = line.split(/\s+/);
+                // ps aux 輸出格式: USER PID %CPU %MEM VSZ RSS TT STAT STARTED TIME COMMAND
+                // 我們主要關心 PID 和 COMMAND
+                const parts = line.trim().split(/\s+/);
+                this.logger.debug(`[Mac] Line parts: ${JSON.stringify(parts)}`); // DEBUG
                 const pid = parseInt(parts[1]);
+                this.logger.debug(`[Mac] Parsed PID: ${pid}`); // DEBUG
+                const cmdLine = parts.slice(10).join(' '); // 假設 Command 從第 11 欄開始
 
-                // 嘗試從命令列提取端口
                 const portMatch = line.match(/--remote-debugging-port=(\d+)/);
                 if (portMatch) {
                     const port = parseInt(portMatch[1]);
@@ -122,15 +151,15 @@ export class ProcessDetector {
      */
     private async detectLinux(): Promise<AntigravityProcess | null> {
         try {
-            const { stdout } = await execAsync(
-                `ps aux | grep -E "(antigravity|Antigravity)" | grep -v grep`,
-                { timeout: 10000 }
+            const { stdout } = await this.executor(
+                `ps -ef | grep "\\--remote-debugging-port=" | grep -v grep`,
+                { timeout: 15000 }
             );
 
             const lines = stdout.trim().split('\n').filter(Boolean);
 
             for (const line of lines) {
-                const parts = line.split(/\s+/);
+                const parts = line.trim().split(/\s+/);
                 const pid = parseInt(parts[1]);
 
                 const portMatch = line.match(/--remote-debugging-port=(\d+)/);

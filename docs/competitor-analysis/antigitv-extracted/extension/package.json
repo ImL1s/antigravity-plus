@@ -1,0 +1,97 @@
+{
+    "name": "antigravity-auto-accept",
+    "displayName": "ITV Auto-Accept",
+    "description": "Automatically accepts and executes commands in the Antigravity prompt.",
+    "version": "1.1.3",
+    "publisher": "antigitv",
+    "license": "MIT",
+    "author": {
+        "name": "iltempovola",
+        "email": "apolimeno@gmail.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/iltempovola/ITV-Auto-Accept.git"
+    },
+    "homepage": "https://github.com/iltempovola/ITV-Auto-Accept/blob/main/README.md",
+    "bugs": {
+        "url": "https://github.com/iltempovola/ITV-Auto-Accept/issues"
+    },
+    "icon": "resources/icon.png",
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "antigravity-auto-accept.start",
+                "title": "Antigravity: Start Auto-Accept"
+            },
+            {
+                "command": "antigravity-auto-accept.stop",
+                "title": "Antigravity: Stop Auto-Accept"
+            },
+            {
+                "command": "antigravity-auto-accept.installDeps",
+                "title": "Antigravity: Install Python Dependencies"
+            }
+        ],
+        "configuration": {
+            "title": "Antigravity Auto-Accept",
+            "properties": {
+                "antigravity-auto-accept.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable or disable the auto-accept functionality."
+                },
+                "antigravity-auto-accept.strategy": {
+                    "type": "string",
+                    "enum": [
+                        "UIA (Text Match)",
+                        "Image Match"
+                    ],
+                    "default": "UIA (Text Match)",
+                    "description": "Choose detection method. 'UIA' reads window controls (Robust, background-capable). 'Image Match' uses screenshots (Legacy)."
+                },
+                "antigravity-auto-accept.buttonNamePattern": {
+                    "type": "string",
+                    "default": "Accept.*",
+                    "description": "Regex pattern to find the button by name (UIA mode only). E.g. 'Accept' or 'Run'."
+                },
+                "antigravity-auto-accept.pythonPath": {
+                    "type": "string",
+                    "default": "python",
+                    "description": "Path to the python executable."
+                },
+                "antigravity-auto-accept.delay": {
+                    "type": "number",
+                    "default": 0.0,
+                    "description": "Delay (in seconds) before clicking the Accept button after detection."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "package": "vsce package"
+    },
+    "devDependencies": {
+        "@types/node": "^16.x",
+        "@types/vscode": "^1.75.0",
+        "typescript": "^4.9.0",
+        "@vscode/vsce": "^2.15.0",
+        "ovsx": "^0.8.0"
+    },
+    "dependencies": {
+        "python-shell": "^5.0.0"
+    }
+}

@@ -1,0 +1,68 @@
+{
+  "version": "1.1",
+  "announcements": [
+    {
+      "id": "ann-2026-01-community-groups",
+      "type": "info",
+      "priority": 110,
+      "title": "💬 Join Our Community",
+      "summary": "Join our new community group!",
+      "content": "The author has created a new community group. Welcome to join!\n\nScan the QR code below 👇",
+      "images": [
+        {
+          "url": "https://raw.githubusercontent.com/jlcodes99/vscode-antigravity-cockpit/main/docs/qq_group_qr.png",
+          "label": "QQ 群"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/jlcodes99/vscode-antigravity-cockpit/main/docs/wechat_group_qr.png",
+          "label": "微信群"
+        }
+      ],
+      "locales": {
+        "zh-cn": {
+          "title": "💬 加入交流群",
+          "summary": "作者新建了技术交流群，欢迎加入！",
+          "content": "作者新建了技术交流群，目前人还不多，欢迎加入！\n\n在群里你可以：\n• 反馈问题或建议\n• 交流使用心得\n• 获取新版本通知\n\n扫码加入 👇"
+        }
+      },
+      "targetVersions": "*",
+      "targetLanguages": ["zh-cn"],
+      "showOnce": true,
+      "popup": true,
+      "createdAt": "2026-01-03T00:00:00Z",
+      "expiresAt": null
+    },
+    {
+      "id": "ann-2026-01-02-auto-wakeup-3",
+      "type": "feature",
+      "priority": 100,
+      "title": "🎉 New Feature: Auto Wake-up",
+      "summary": "Wake up your quota cycle automatically! Try it now.",
+      "content": "⏰ Auto Wake-up\n\nSet scheduled requests to AI models to trigger quota reset cycles early.\n\n🔐 Security: \nCredentials encrypted in VS Code Secret Storage, used locally only.\n\nScenario: \nIf you start work at 9:00, set wake-up at 6:00. By 9:00, the cycle has run for 3 hours. After 2 hours of heavy use (11:00), you get your first reset early!\n\n⚠️ Note: Requires Antigravity enabled and network connected.",
+      "action": {
+        "type": "tab",
+        "target": "auto-trigger",
+        "label": "Check it out"
+      },
+      "locales": {
+        "zh-cn": {
+          "title": "🎉 发现新功能：自动唤醒",
+          "summary": "自动唤醒您的配额周期！快来体验全新的自动唤醒功能。",
+          "content": "⏰ 自动唤醒\n\n设置定时向 AI 大模型发送请求，提前消耗少量配额以触发重置周期。\n\n🔐 安全保障：\n凭证加密存储于 VS Code Secret Storage，仅本地运行使用。\n\n场景示例：\n若您 9:00 上班，可设置 6:00 自动唤醒。这样当您开始工作时，配额周期已运行 3 小时，您在高强度使用 2 小时后（11:00）即可获得首次重置，比平时更早恢复满血状态。\n\n⚠️ 注意：需保持 Antigravity 开启 且 网络通畅 才能生效。",
+          "actionLabel": "立即体验"
+        },
+        "zh-tw": {
+          "title": "🎉 發現新功能：自動喚醒",
+          "summary": "自動喚醒您的配額週期！快來體驗全新的自動喚醒功能。",
+          "content": "⏰ 自動喚醒\n\n設置定時向 AI 大模型發送請求，提前消耗少量配額以觸發重置週期。\n\n🔐 安全保障：\n憑證加密存儲於 VS Code Secret Storage，僅本地運行使用。\n\n場景示例：\n若您 9:00 上班，可設置 6:00 自動喚醒。這樣當您開始工作時，配額週期已運行 3 小時，您在高強度使用 2 小時後（11:00）即可獲得首次重置，比平時更早恢復滿血狀態。\n\n⚠️ 注意：需保持 Antigravity 開啟 且 網絡通暢 才能生效。",
+          "actionLabel": "立即體驗"
+        }
+      },
+      "targetVersions": ">=1.6.0",
+      "showOnce": true,
+      "popup": true,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "expiresAt": null
+    }
+  ]
+}

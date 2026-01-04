@@ -1,17 +1,10 @@
-/**
- * 自動核准控制器 (重構版)
- * 
- * 移除 CDP 依賴，使用更安全的方式
- * 
- * 注意：Auto Accept 功能需要 Antigravity 提供相應的 API 或命令
- * 目前僅提供規則評估和操作日誌功能
- */
 
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { ConfigManager } from '../../utils/config';
 import { RulesEngine } from './rules-engine';
 import { OperationLogger, OperationLog } from './operation-logger';
+import { CDPManager } from './cdp-manager';
 
 export interface ApprovalResult {
     approved: boolean;
@@ -23,48 +16,52 @@ export class AutoApproveController implements vscode.Disposable {
     private enabled: boolean = false;
     private rulesEngine: RulesEngine;
     private operationLogger: OperationLogger;
+    private cdpManager: CDPManager;
     private disposables: vscode.Disposable[] = [];
+    private intervalId: NodeJS.Timeout | null = null;
+    private isDisposed: boolean = false;
 
     constructor(
         private context: vscode.ExtensionContext,
         private logger: Logger,
-        private configManager: ConfigManager
+        private configManager: ConfigManager,
+        cdpManager?: CDPManager // Optional injection for testing
     ) {
-        this.enabled = configManager.get<boolean>('autoApprove.enabled') ?? false;
+        this.enabled = this.configManager.get<boolean>('autoApprove.enabled') ?? false;
+        this.logger.info(`AutoApproveController initialized (Enabled: ${this.enabled})`);
         this.rulesEngine = new RulesEngine(configManager);
         this.operationLogger = new OperationLogger(context);
+        this.cdpManager = cdpManager || new CDPManager(logger);
 
         this.initialize();
     }
 
     /**
-     * 初始化控制器
-     * 注意：不再使用 CDP，改用 VS Code 原生機制
+     * Initialize the controller
      */
     private async initialize(): Promise<void> {
         this.logger.info('AutoApproveController 初始化中...');
 
-        // 監聽終端指令
+        // Listen for terminal creation
         this.setupTerminalListener();
 
-        // 嘗試使用 VS Code 的 chat.tools.autoApprove 設定
+        // Try to setup VS Code native auto approve config if applicable
         this.setupAutoApproveConfig();
+
+        // Start polling for auto-approval strategies
+        this.startPolling();
 
         this.logger.info('AutoApproveController 初始化完成');
     }
 
     /**
-     * 設定自動核准配置
-     * 使用 VS Code 的原生設定
+     * Setup VS Code native auto-approve configuration
      */
     private setupAutoApproveConfig(): void {
         if (this.enabled) {
-            // 嘗試設定 VS Code 的自動核准
-            // 注意：這需要 VS Code 1.96+ 和相應的 AI 擴充功能支援
             try {
-                const config = vscode.workspace.getConfiguration('chat.tools');
-                // 只設定安全的自動核准
-                // config.update('autoApprove', { ... }, vscode.ConfigurationTarget.Global);
+                // In a real scenario, this might set vscode configuration for chat tools
+                // const config = vscode.workspace.getConfiguration('chat.tools');
                 this.logger.debug('自動核准配置已應用');
             } catch (error) {
                 this.logger.debug('VS Code 自動核准配置不可用');
@@ -73,10 +70,9 @@ export class AutoApproveController implements vscode.Disposable {
     }
 
     /**
-     * 設定終端監聯器
+     * Setup terminal listener
      */
     private setupTerminalListener(): void {
-        // 監聽終端創建
         this.disposables.push(
             vscode.window.onDidOpenTerminal(terminal => {
                 this.logger.debug(`終端已開啟: ${terminal.name}`);
@@ -85,12 +81,90 @@ export class AutoApproveController implements vscode.Disposable {
     }
 
     /**
-     * 切換自動核准狀態
+     * Start the polling loop based on configured strategy
+     */
+    private startPolling(): void {
+        const intervalMs = this.configManager.get<number>('autoApprove.interval') ?? 1000;
+
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+        }
+
+        this.logger.info(`Starting AutoApprove polling (Interval: ${intervalMs}ms)`);
+
+        this.intervalId = setInterval(async () => {
+            await this.poll();
+        }, intervalMs);
+    }
+
+    private async poll() {
+        if (!this.enabled || this.isDisposed) {
+            return;
+        }
+
+        try {
+            const config = vscode.workspace.getConfiguration('antigravity-plus.autoApprove');
+            const strategy = config.get<string>('strategy', 'pesosz');
+
+            if (strategy === 'pesosz') {
+                await this.executePesoszStrategy();
+            } else if (strategy === 'native') {
+                await this.executeNativeStrategy();
+            } else if (strategy === 'cdp') {
+                await this.executeCDPStrategy();
+            }
+        } catch (error) {
+            this.logger.error(`AutoApprove Polling Error: ${error}`);
+        }
+    }
+
+    /**
+     * Pesosz Strategy: Directly invoke Antigravity internal commands.
+     */
+    private async executePesoszStrategy() {
+        try {
+            await vscode.commands.executeCommand('antigravity.agent.acceptAgentStep');
+        } catch (e) { }
+
+        try {
+            await vscode.commands.executeCommand('antigravity.terminal.accept');
+        } catch (e) { }
+    }
+
+    /**
+     * Native Strategy: Use VS Code's inline suggest commit command.
+     */
+    private async executeNativeStrategy() {
+        try {
+            await vscode.commands.executeCommand('editor.action.inlineSuggest.commit');
+        } catch (e) { }
+    }
+
+    /**
+     * CDP Strategy: Use passive CDP injection
+     */
+    private async executeCDPStrategy() {
+        const denyList = this.configManager.get<string[]>('autoApprove.denyList') ?? [];
+        const allowList = this.configManager.get<string[]>('autoApprove.allowList') ?? [];
+        const interval = this.configManager.get<number>('autoApprove.interval') ?? 1000;
+
+        const success = await this.cdpManager.tryConnectAndInject({
+            denyList,
+            allowList,
+            clickInterval: interval
+        });
+
+        if (!success) {
+            // Fallback to Pesosz strategy could be implemented here
+        }
+    }
+
+    /**
+     * Toggle auto-approve state
      */
     public toggle(): boolean {
         this.enabled = !this.enabled;
 
-        // 同時更新設定
         vscode.workspace.getConfiguration('antigravity-plus').update(
             'autoApprove.enabled',
             this.enabled,
@@ -98,25 +172,17 @@ export class AutoApproveController implements vscode.Disposable {
         );
 
         this.logger.info(`自動核准已${this.enabled ? '啟用' : '停用'}`);
-
-        // 更新自動核准配置
         this.setupAutoApproveConfig();
 
         return this.enabled;
     }
 
-    /**
-     * 啟用自動核准
-     */
     public enable(): void {
         if (!this.enabled) {
             this.toggle();
         }
     }
 
-    /**
-     * 停用自動核准
-     */
     public disable(): void {
         if (this.enabled) {
             this.toggle();
@@ -124,7 +190,7 @@ export class AutoApproveController implements vscode.Disposable {
     }
 
     /**
-     * 評估終端指令是否可以自動執行
+     * Evaluate if a terminal command should be allowed
      */
     public evaluateTerminalCommand(command: string): ApprovalResult {
         if (!this.enabled) {
@@ -136,7 +202,6 @@ export class AutoApproveController implements vscode.Disposable {
             content: command
         });
 
-        // 記錄操作
         this.operationLogger.log({
             type: 'terminal_command',
             action: result.approved ? 'approved' : 'blocked',
@@ -148,7 +213,7 @@ export class AutoApproveController implements vscode.Disposable {
     }
 
     /**
-     * 評估檔案操作是否可以自動接受
+     * Evaluate if a file operation should be allowed
      */
     public evaluateFileOperation(filePath: string, operation: string): ApprovalResult {
         if (!this.enabled) {
@@ -166,7 +231,6 @@ export class AutoApproveController implements vscode.Disposable {
             operation
         });
 
-        // 記錄操作
         this.operationLogger.log({
             type: 'file_edit',
             action: result.approved ? 'approved' : 'blocked',
@@ -177,43 +241,43 @@ export class AutoApproveController implements vscode.Disposable {
         return result;
     }
 
-    /**
-     * 取得操作日誌
-     */
     public getOperationLogs(limit?: number): OperationLog[] {
         return this.operationLogger.getLogs(limit);
     }
 
-    /**
-     * 更新設定
-     */
     public updateConfig(): void {
         this.enabled = this.configManager.get<boolean>('autoApprove.enabled') ?? false;
         this.rulesEngine.updateRules();
         this.setupAutoApproveConfig();
+
+        // Refresh polling interval
+        this.startPolling();
+
         this.logger.info('AutoApproveController 設定已更新');
     }
 
-    /**
-     * 取得目前狀態
-     */
     public isEnabled(): boolean {
         return this.enabled;
     }
 
-    /**
-     * 設定輪詢間隔
-     */
     public setPollingInterval(intervalMs: number): void {
         this.logger.debug(`輪詢間隔已更新: ${intervalMs}ms`);
-        // 保留此方法以維持 API 相容性
+        // The actual update happens via config change triggering updateConfig, 
+        // or we could force restart polling here if needed.
+        // For now, assume updateConfig covers it or this is just for API compatibility.
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = setInterval(async () => {
+                await this.poll();
+            }, intervalMs);
+        }
     }
 
-    /**
-     * 釋放資源
-     */
     public dispose(): void {
+        this.isDisposed = true;
+        if (this.intervalId) clearInterval(this.intervalId);
         this.disposables.forEach(d => d.dispose());
+        this.cdpManager.dispose();
         this.logger.info('AutoApproveController 已釋放');
     }
 }

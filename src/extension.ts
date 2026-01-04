@@ -95,13 +95,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await quotaMonitorController.start();
     }
 
-    // Auto Approve 暫時停用（等待移除 CDP 後重新啟用）
-    // if (configManager.get<boolean>('autoApprove.enabled')) {
-    //     autoApproveController.enable();
-    // }
+    // Start Quota Monitor (Using secure HTTPS API)
+    quotaMonitorController.start();
 
-    // Auto Wake-up 暫時停用（等待 OAuth 實作後重新啟用）
-    // await wakeupController.start();
+    // Enable Auto Approve (Using Pesosz Command Strategy)
+    autoApproveController.enable();
+
+    // Start Auto Wakeup (Using Cloud API)
+    // wakeupController.start();
 
     logger.info('Antigravity Plus 已啟動');
 }
