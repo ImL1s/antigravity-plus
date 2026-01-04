@@ -266,7 +266,7 @@ describe('Unit Tests - Auto Wake-up History', () => {
                 // For this unit test, we rely on the global mock set up in run-unit-tests.js/mock-vscode.ts
                 // which defaults to empty config.
 
-                controller = new AutoWakeupController(mockContext as any, mockLogger as any, mockQuotaMonitor as any);
+                controller = new AutoWakeupController(mockContext as any, mockLogger as any, mockQuotaMonitor as any, undefined);
             });
 
             it('Scenario A: Healthy Quota -> Should use default work start time (Standard Strategy)', () => {
