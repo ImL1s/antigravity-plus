@@ -21,11 +21,12 @@ export type StatusBarFormat =
 
 export class StatusBarManager implements vscode.Disposable {
     // Core Items
+    private quotaItem: vscode.StatusBarItem;  // 単一配額顯示項目（對標 Cockpit）
     private autoApproveItem: vscode.StatusBarItem;
     private backgroundItem: vscode.StatusBarItem;
     private settingsItem: vscode.StatusBarItem;
 
-    // Dynamic Group Items
+    // Dynamic Group Items (備用）
     private groupItems: vscode.StatusBarItem[] = [];
     private readonly MAX_GROUPS = 5;
 
@@ -38,6 +39,16 @@ export class StatusBarManager implements vscode.Disposable {
 
     constructor(private context: vscode.ExtensionContext) {
         // === 建立固定項目 (右至左優先級: 低數字 = 更靠右) ===
+
+        // 0. Quota Display (最左邊配額顯示 - 對標 Cockpit)
+        this.quotaItem = vscode.window.createStatusBarItem(
+            vscode.StatusBarAlignment.Right,
+            201
+        );
+        this.quotaItem.command = 'antigravity-plus.openDashboard';
+        this.quotaItem.text = `$(sync~spin) 配額載入中...`;
+        this.quotaItem.tooltip = t('statusBar.quota.loading') || 'Loading quota...';
+        this.quotaItem.show();
 
         // 1. Auto Accept (最右邊)
         this.autoApproveItem = vscode.window.createStatusBarItem(
@@ -69,6 +80,7 @@ export class StatusBarManager implements vscode.Disposable {
 
         // 註冊清理
         context.subscriptions.push(
+            this.quotaItem,
             this.autoApproveItem,
             this.backgroundItem,
             this.settingsItem
@@ -119,14 +131,137 @@ export class StatusBarManager implements vscode.Disposable {
     // ========== Quota Groups ==========
 
     /**
-     * 更新配額顯示 (多群組)
+     * 設定載入狀態 (對標 Cockpit setLoading)
+     */
+    public setLoading(text?: string): void {
+        this.quotaItem.text = `$(sync~spin) ${text || t('statusBar.quota.loading') || 'Loading...'}`;
+        this.quotaItem.backgroundColor = undefined;
+    }
+
+    /**
+     * 設定就緒狀態 (對標 Cockpit setReady)
+     */
+    public setReady(): void {
+        this.quotaItem.text = `$(rocket) ${t('statusBar.quota.ready') || 'Ready'}`;
+        this.quotaItem.backgroundColor = undefined;
+    }
+
+    /**
+     * 設定錯誤狀態 (對標 Cockpit setError)
+     */
+    public setError(message: string): void {
+        this.quotaItem.text = `$(error) ${t('statusBar.quota.error') || 'Error'}`;
+        this.quotaItem.tooltip = message;
+        this.quotaItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+    }
+
+    /**
+     * 設定離線狀態 (對標 Cockpit setOffline)
+     */
+    public setOffline(): void {
+        this.quotaItem.text = `$(error) ${t('statusBar.quota.offline') || 'Offline'}`;
+        this.quotaItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+    }
+
+    /**
+     * 更新配額顯示 (對標 Cockpit update)
+     * 使用單一 quotaItem 顯示所有模型配額
      */
     public updateQuota(data: QuotaData): void {
         this.currentQuotaData = data;
-        // 若未提供分組，則自動從模型建立單一群組
+
+        if (!data.models || data.models.length === 0) {
+            this.quotaItem.text = `$(rocket) No Data`;
+            return;
+        }
+
+        // 格式化配額文字（對標 Cockpit 的顯示方式）
+        const config = vscode.workspace.getConfiguration('antigravity-plus');
+        const format = config.get<StatusBarFormat>('quotaMonitor.displayStyle') || 'iconNamePercentage';
+
+        const parts: string[] = [];
+        let minPercentage = 100;
+
+        // 最多顯示 3 個模型，超過則顯示最低配額的
+        const displayModels = data.models.slice(0, 3);
+
+        for (const model of displayModels) {
+            const remaining = 100 - model.percentage;
+            const icon = this.getStatusIcon(remaining);
+            const shortName = this.getShortName(model.displayName);
+
+            // 根據格式顯示
+            let text: string;
+            switch (format) {
+                case 'icon':
+                    text = icon;
+                    break;
+                case 'percentage':
+                    text = `${remaining}%`;
+                    break;
+                case 'iconPercentage':
+                    text = `${icon} ${remaining}%`;
+                    break;
+                case 'namePercentage':
+                    text = `${shortName}: ${remaining}%`;
+                    break;
+                case 'iconNamePercentage':
+                default:
+                    text = `${icon} ${shortName}: ${remaining}%`;
+                    break;
+            }
+
+            parts.push(text);
+            if (remaining < minPercentage) {
+                minPercentage = remaining;
+            }
+        }
+
+        // 設定 quotaItem 文字
+        this.quotaItem.text = parts.join(' | ');
+        this.quotaItem.backgroundColor = undefined;
+
+        // 設定警告背景色
+        if (minPercentage <= 10) {
+            this.quotaItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        } else if (minPercentage <= 30) {
+            this.quotaItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        }
+
+        // 建立 tooltip
+        this.quotaItem.tooltip = this.buildQuotaTooltip(data);
+
+        // 同時更新 groups（保持向後相容）
         if (data.models.length > 0 && this.currentGroups.length === 0) {
             this.updateGroupsFromModels(data.models);
         }
+    }
+
+    /**
+     * 建立配額 Tooltip
+     */
+    private buildQuotaTooltip(data: QuotaData): vscode.MarkdownString {
+        const md = new vscode.MarkdownString();
+        md.isTrusted = true;
+        md.supportHtml = true;
+
+        md.appendMarkdown(`**🚀 Antigravity Plus - Quota Monitor**\n\n`);
+
+        // 表格標題
+        md.appendMarkdown('| Model | Remaining | Reset |\n');
+        md.appendMarkdown('| :--- | :--- | :--- |\n');
+
+        for (const model of data.models) {
+            const remaining = 100 - model.percentage;
+            const icon = this.getStatusIcon(remaining);
+            const resetTime = model.resetTime
+                ? model.resetTime.toLocaleTimeString()
+                : '-';
+            md.appendMarkdown(`| ${icon} **${model.displayName}** | ${remaining}% | ${resetTime} |\n`);
+        }
+
+        md.appendMarkdown(`\n---\n*Click to open Dashboard*`);
+        return md;
     }
 
     /**
