@@ -9,9 +9,9 @@ import * as assert from 'assert';
 // 模擬 StatusBarManager 的核心邏輯 (無需 VS Code 環境)
 class StatusBarLogic {
     static getStatusIcon(percent: number): string {
-        if (percent >= 50) return '🟢';
-        if (percent >= 20) return '🟡';
-        return '🔴';
+        if (percent >= 50) return String.fromCodePoint(0x1F7E2); // Green
+        if (percent >= 20) return String.fromCodePoint(0x1F7E1); // Yellow
+        return String.fromCodePoint(0x1F534); // Red
     }
 
     static formatGroupText(name: string, percent: number, format: string): string {
@@ -60,23 +60,23 @@ class StatusBarLogic {
 describe('Unit Tests - Status Bar Logic', () => {
     describe('getStatusIcon', () => {
         it('should show green for >= 50%', () => {
-            assert.strictEqual(StatusBarLogic.getStatusIcon(100), '🟢');
-            assert.strictEqual(StatusBarLogic.getStatusIcon(50), '🟢');
+            assert.strictEqual(StatusBarLogic.getStatusIcon(100), String.fromCodePoint(0x1F7E2));
+            assert.strictEqual(StatusBarLogic.getStatusIcon(50), String.fromCodePoint(0x1F7E2));
         });
 
         it('should show yellow for 20-49%', () => {
-            assert.strictEqual(StatusBarLogic.getStatusIcon(49), '🟡');
-            assert.strictEqual(StatusBarLogic.getStatusIcon(20), '🟡');
+            assert.strictEqual(StatusBarLogic.getStatusIcon(49), String.fromCodePoint(0x1F7E1));
+            assert.strictEqual(StatusBarLogic.getStatusIcon(20), String.fromCodePoint(0x1F7E1));
         });
 
         it('should show red for < 20%', () => {
-            assert.strictEqual(StatusBarLogic.getStatusIcon(19), '🔴');
-            assert.strictEqual(StatusBarLogic.getStatusIcon(0), '🔴');
+            assert.strictEqual(StatusBarLogic.getStatusIcon(19), String.fromCodePoint(0x1F534));
+            assert.strictEqual(StatusBarLogic.getStatusIcon(0), String.fromCodePoint(0x1F534));
         });
 
         it('edge cases', () => {
-            assert.strictEqual(StatusBarLogic.getStatusIcon(50), '🟢', '50% should be green');
-            assert.strictEqual(StatusBarLogic.getStatusIcon(20), '🟡', '20% should be yellow');
+            assert.strictEqual(StatusBarLogic.getStatusIcon(50), String.fromCodePoint(0x1F7E2), '50% should be green');
+            assert.strictEqual(StatusBarLogic.getStatusIcon(20), String.fromCodePoint(0x1F7E1), '20% should be yellow');
         });
     });
 

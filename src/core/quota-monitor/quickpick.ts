@@ -73,8 +73,9 @@ export class QuickPickQuotaDisplay implements vscode.Disposable {
             } else if (selected.action === 'rename' && selected.groupId) {
                 // 重命名分組
                 const newName = await vscode.window.showInputBox({
-                    prompt: t('quickpick.renamePrompt') || 'Enter new name for this group',
-                    value: selected.label.replace(/^[📊🔴🟡🟢⚪] /, '')
+                    // Remove icons from start of label (Bar, Red, Yellow, Green, White circles)
+                    // using Unicode ranges or explicit code points to avoid source-code surrogates
+                    value: selected.label.replace(new RegExp(`^[${String.fromCodePoint(0x1F4CA, 0x1F534, 0x1F7E1, 0x1F7E2, 0x26AA)}] `), '')
                 });
                 if (newName) {
                     this.groupingManager.rename(selected.groupId, newName);
