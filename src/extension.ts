@@ -89,17 +89,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         })
     );
 
-    // 啟動服務
-    if (configManager.get<boolean>('quotaMonitor.enabled')) {
-        await quotaMonitorController.start();
-    }
+    // ⚠️ 安全模式：所有功能預設停用，由用戶手動啟用
+    // 這是為了避免干擾 Antigravity 的正常運作
+    // 用戶可以透過指令或設定來手動啟用功能
 
-    if (configManager.get<boolean>('autoApprove.enabled')) {
-        autoApproveController.enable();
-    }
+    // 不自動啟動任何服務，等待用戶手動觸發
+    // if (configManager.get<boolean>('quotaMonitor.enabled')) {
+    //     await quotaMonitorController.start();
+    // }
 
-    // 啟動 Auto Wake-up
-    await wakeupController.start();
+    // if (configManager.get<boolean>('autoApprove.enabled')) {
+    //     autoApproveController.enable();
+    // }
+
+    // await wakeupController.start();
 
     logger.info('Antigravity Plus 已啟動');
 }

@@ -2,7 +2,7 @@
   "name": "antigravity-plus",
   "displayName": "Antigravity Plus",
   "description": "Auto-approve AI Agent requests + Quota monitoring — The ultimate productivity tool for Google Antigravity",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "ImL1s",
   "engines": {
     "vscode": "^1.85.0"
@@ -63,7 +63,7 @@
         "antigravity-plus.autoApprove.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "啟用自動核准 AI Agent 請求"
+          "description": "啓用自動核准 AI Agent 請求 (預設停用，請手動開啟)"
         },
         "antigravity-plus.autoApprove.fileOperations": {
           "type": "boolean",
@@ -100,8 +100,8 @@
         },
         "antigravity-plus.quotaMonitor.enabled": {
           "type": "boolean",
-          "default": true,
-          "description": "啟用配額監控"
+          "default": false,
+          "description": "啓用配額監控 (預設停用，請手動開啟)"
         },
         "antigravity-plus.quotaMonitor.pollingInterval": {
           "type": "number",
