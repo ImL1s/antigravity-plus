@@ -221,7 +221,7 @@
     "glob": "^13.0.0",
     "mocha": "^11.7.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.3.3"
   },
   "dependencies": {
     "uuid": "^9.0.0",

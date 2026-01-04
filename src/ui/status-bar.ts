@@ -320,7 +320,7 @@ export class StatusBarManager implements vscode.Disposable {
             );
 
             const remaining = 100 - group.aggregatedQuota.percentage;
-            const icon = this.getStatusIcon(remaining);
+
             const text = this.formatGroupText(group.displayName, remaining, format);
 
             item.text = text;
@@ -429,7 +429,7 @@ export class StatusBarManager implements vscode.Disposable {
     /**
      * 更新 Session 顯示 (可選，若要保留)
      */
-    public updateSession(session: UsageSession): void {
+    public updateSession(_session: UsageSession): void {
         // Session 項目已移除，統計由 Dashboard 顯示
     }
 
