@@ -1,37 +1,23 @@
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 
-// Mock vscode globally before any test loads
-Module.prototype.require = function (path) {
-    if (path === 'vscode') {
-        return {
-            workspace: {
-                getConfiguration: () => ({
-                    get: () => undefined,
-                    update: () => Promise.resolve()
-                })
-            },
-            ConfigurationTarget: { Global: 1 },
-            StatusBarAlignment: { Left: 1, Right: 2 },
-            window: {
-                createStatusBarItem: () => ({ show: () => { }, hide: () => { }, dispose: () => { } })
-            }
-        };
-    }
-    return originalRequire.apply(this, arguments);
-};
+// Enable global mock
+require('./out/test/unit/mock-vscode').mockVscode();
 
 const Mocha = require('mocha');
 const path = require('path');
 
 const mocha = new Mocha({
-    ui: 'tdd',
-    color: true
+    ui: 'bdd',
+    color: true,
+    timeout: 10000
 });
 
 // Add test files
-mocha.addFile(path.join(__dirname, 'out/test/unit/status-bar-format.test.js'));
+// Add test files
+mocha.addFile(path.join(__dirname, 'out/test/unit/sb_formatter.test.js'));
 mocha.addFile(path.join(__dirname, 'out/test/unit/grouping.test.js'));
+mocha.addFile(path.join(__dirname, 'out/test/unit/status-bar.test.js'));
 
 console.log('Running unit tests...');
 

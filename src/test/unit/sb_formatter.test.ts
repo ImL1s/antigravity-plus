@@ -1,10 +1,9 @@
 /* eslint-disable */
-import './mock-vscode';
 import * as assert from 'assert';
 import { StatusBarFormatter, IConfigProvider } from '../../core/quota-monitor/status-bar-format';
 import { ModelQuota } from '../../core/quota-monitor/controller';
 
-suite('StatusBarFormatter Tests', () => {
+describe('StatusBarFormatter Tests', () => {
     let formatter: StatusBarFormatter;
 
     const mockModel: ModelQuota = {
@@ -18,7 +17,7 @@ suite('StatusBarFormatter Tests', () => {
 
     let configData: Record<string, any>;
 
-    setup(() => {
+    beforeEach(() => {
         configData = {
             'statusBarFormat': 'icon-percent',
             'warningThreshold': 30,
@@ -41,51 +40,52 @@ suite('StatusBarFormatter Tests', () => {
         formatter = new StatusBarFormatter(configProvider);
     });
 
-    test('Should format icon-only correctly', () => {
+    it('Should format icon-only correctly', () => {
         formatter.setFormat('icon-only');
         assert.strictEqual(formatter.formatModel(mockModel), String.fromCodePoint(0x1F680));
     });
 
-    test('Should format color-icon correctly', () => {
+    it('Should format color-icon correctly', () => {
         formatter.setFormat('color-icon');
         assert.strictEqual(formatter.formatModel(mockModel), String.fromCodePoint(0x1F7E2));
     });
 
-    test('Should format percent-only correctly', () => {
+    it('Should format percent-only correctly', () => {
         formatter.setFormat('percent-only');
         assert.strictEqual(formatter.formatModel(mockModel), '90%');
     });
 
-    test('Should format icon-percent correctly', () => {
+    it('Should format icon-percent correctly', () => {
         formatter.setFormat('icon-percent');
         assert.strictEqual(formatter.formatModel(mockModel), String.fromCodePoint(0x1F7E2) + ' 90%');
     });
 
-    test('Should format name-percent correctly', () => {
+    it('Should format name-percent correctly', () => {
         formatter.setFormat('name-percent');
         assert.strictEqual(formatter.formatModel(mockModel), 'Sonnet: 90%');
     });
 
-    test('Should format full correctly', () => {
+    it('Should format full correctly', () => {
         formatter.setFormat('full');
         assert.strictEqual(formatter.formatModel(mockModel), String.fromCodePoint(0x1F7E2) + ' Sonnet: 90%');
     });
 
-    test('Should handle critical threshold', () => {
+    it('Should handle critical threshold', () => {
         formatter.setFormat('color-icon');
         const criticalModel = { ...mockModel, remainingPercentage: 5 };
         assert.strictEqual(formatter.formatModel(criticalModel), String.fromCodePoint(0x1F534));
     });
 
-    test('Should handle warning threshold', () => {
+    it('Should handle warning threshold', () => {
         formatter.setFormat('color-icon');
         const warningModel = { ...mockModel, remainingPercentage: 20 };
         assert.strictEqual(formatter.formatModel(warningModel), String.fromCodePoint(0x1F7E1));
     });
 
-    test('Should shorten model names correctly', () => {
+    it('Should shorten model names correctly', () => {
         formatter.setFormat('full');
         const model = { ...mockModel, displayName: 'Gemini 1.5 Pro' };
         // Assuming Logic matches expected
     });
 });
+

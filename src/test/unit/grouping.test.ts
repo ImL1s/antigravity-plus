@@ -1,10 +1,9 @@
-import './mock-vscode';
 import * as assert from 'assert';
 // import * as sinon from 'sinon';
 import { GroupingManager } from '../../core/quota-monitor/grouping';
 import { ModelQuota } from '../../core/quota-monitor/controller';
 
-suite('GroupingManager Tests', () => {
+describe('GroupingManager Tests', () => {
     let manager: GroupingManager;
     let contextStub: any;
 
@@ -41,7 +40,7 @@ suite('GroupingManager Tests', () => {
         }
     ];
 
-    setup(() => {
+    beforeEach(() => {
         // Mock context
         contextStub = {
             globalState: {
@@ -53,7 +52,7 @@ suite('GroupingManager Tests', () => {
         manager = new GroupingManager(contextStub);
     });
 
-    test('Should dynamic group models with same quota pool (Cockpit logic)', () => {
+    it('Should dynamic group models with same quota pool (Cockpit logic)', () => {
         const groups = manager.createGroups(mockModels);
 
         // Expect 2 groups: Gemini (2 models) and Claude (1 model)
@@ -66,7 +65,7 @@ suite('GroupingManager Tests', () => {
         assert.ok(claudeGroup, 'Should find a group with 1 model');
     });
 
-    test('Should fallback to static mapping if dynamic data missing', () => {
+    it('Should fallback to static mapping if dynamic data missing', () => {
         const staticModels: ModelQuota[] = [
             {
                 name: 'gemini-3-pro',
