@@ -91,12 +91,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     // 啟動服務（使用修正後的 API 連接方式）
     // Quota Monitor 已修正：使用 HTTPS + X-Codeium-Csrf-Token
+    // 注意：使用 setImmediate 避免阻塞擴充功能啟動
     if (configManager.get<boolean>('quotaMonitor.enabled')) {
-        await quotaMonitorController.start();
+        setImmediate(() => {
+            quotaMonitorController?.start().catch(err => {
+                logger?.error(`QuotaMonitor start error: ${err}`);
+            });
+        });
     }
-
-    // Start Quota Monitor (Using secure HTTPS API)
-    quotaMonitorController.start();
 
     // Enable Auto Approve (Using Pesosz Command Strategy)
     autoApproveController.enable();
