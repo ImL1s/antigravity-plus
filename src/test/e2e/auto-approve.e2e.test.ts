@@ -5,14 +5,11 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
+import { waitForExtension } from './test-utils';
+
 suite('E2E Tests - Auto Approve', () => {
     suiteSetup(async () => {
-        const extension = vscode.extensions.getExtension('ImL1s.antigravity-plus');
-        if (extension && !extension.isActive) {
-            await extension.activate();
-        }
-        // 等待擴展完全啟動
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await waitForExtension();
     });
 
     suite('切換自動核准', () => {

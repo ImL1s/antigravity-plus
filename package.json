@@ -55,6 +55,11 @@
         "command": "antigravity-plus.showQuickPick",
         "title": "Show Quota Quick Pick",
         "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.toggleAutoWakeup",
+        "title": "Toggle Auto Wake-up (Background)",
+        "category": "Antigravity Plus"
       }
     ],
     "configuration": {

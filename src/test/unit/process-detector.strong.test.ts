@@ -7,17 +7,17 @@ let mockExecOutput: string = '';
 let mockHttpResponses: Record<number, any> = {};
 
 const mockLogger = {
-    debug: (msg: string) => console.log('DEBUG:', msg),
-    info: (msg: string) => { },
-    warn: (msg: string) => { },
-    error: (msg: string) => console.error('ERROR:', msg),
+    debug: (_msg: string) => console.log('DEBUG:', _msg),
+    info: (_msg: string) => { },
+    warn: (_msg: string) => { },
+    error: (_msg: string) => console.error('ERROR:', _msg),
     log: () => { },
     showOutputChannel: () => { },
     dispose: () => { }
 };
 
 // Mock Executor
-const mockExecutor = async (cmd: string, opts: any) => {
+const mockExecutor = async (_cmd: string, _opts: any) => {
     return { stdout: mockExecOutput, stderr: '' };
 };
 

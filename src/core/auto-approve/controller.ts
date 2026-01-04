@@ -122,22 +122,27 @@ export class AutoApproveController implements vscode.Disposable {
      * Pesosz Strategy: Directly invoke Antigravity internal commands.
      */
     private async executePesoszStrategy() {
-        try {
-            await vscode.commands.executeCommand('antigravity.agent.acceptAgentStep');
-        } catch (e) { void (e); }
-
-        try {
-            await vscode.commands.executeCommand('antigravity.terminal.accept');
-        } catch (e) { void (e); }
+        await this.runCommand('antigravity.agent.acceptAgentStep');
+        await this.runCommand('antigravity.terminal.accept');
     }
 
     /**
      * Native Strategy: Use VS Code's inline suggest commit command.
      */
     private async executeNativeStrategy() {
+        await this.runCommand('editor.action.inlineSuggest.commit');
+    }
+
+    /**
+     * Run a VS Code command safely
+     */
+    protected async runCommand(command: string, ...args: any[]): Promise<any> {
         try {
-            await vscode.commands.executeCommand('editor.action.inlineSuggest.commit');
-        } catch (e) { void (e); }
+            return await vscode.commands.executeCommand(command, ...args);
+        } catch (e) {
+            this.logger.debug(`Command execution failed: ${command} - ${e}`);
+            return undefined;
+        }
     }
 
     /**

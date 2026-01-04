@@ -5,13 +5,11 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
+import { waitForExtension } from './test-utils';
+
 suite('E2E Tests - Dashboard', () => {
     suiteSetup(async () => {
-        const extension = vscode.extensions.getExtension('ImL1s.antigravity-plus');
-        if (extension && !extension.isActive) {
-            await extension.activate();
-        }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await waitForExtension();
     });
 
     suite('開啟 Dashboard', () => {

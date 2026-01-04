@@ -114,6 +114,6 @@ suite('Integration Tests - Antigravity Mock', () => {
         assert.ok(data, '應該要獲取到數據');
         assert.strictEqual(lastRequest?.url, '/api', '應該發送請求到 /api');
         assert.strictEqual(lastRequest?.body?.method, 'GetUserStatus', '應該呼叫 GetUserStatus 方法');
-        assert.ok(data?.models.length! > 0, '應該解析出模型數據');
+        assert.ok((data?.models.length ?? 0) > 0, '應該解析出模型數據');
     });
 });

@@ -8,6 +8,7 @@ import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { Logger } from '../../utils/logger';
+import * as fs from 'fs';
 
 const execAsync = promisify(exec);
 
@@ -91,6 +92,7 @@ Start-Sleep -Seconds 30
         const command = `schtasks /create /tn "${TASK_NAME}" /tr "powershell.exe -ExecutionPolicy Bypass -File '${scriptPath}'" /sc daily /st ${hours}:${minutes} /f`;
 
         try {
+            fs.writeFileSync(scriptPath, scriptContent);
             await execAsync(command);
             this.logger.info(`Windows 排程任務已建立: ${time}`);
             return true;
@@ -130,7 +132,6 @@ Start-Sleep -Seconds 30
 </plist>`;
 
         try {
-            const fs = require('fs');
             fs.writeFileSync(plistPath, plistContent);
             await execAsync(`launchctl load ${plistPath}`);
             this.logger.info(`macOS launchd 任務已建立: ${time}`);
@@ -210,7 +211,6 @@ Start-Sleep -Seconds 30
                     await execAsync(`schtasks /query /tn "${TASK_NAME}"`);
                     return true;
                 case 'darwin':
-                    const fs = require('fs');
                     return fs.existsSync(`${os.homedir()}/Library/LaunchAgents/com.antigravityplus.wakeup.plist`);
                 case 'linux':
                     const result = await execAsync('crontab -l');

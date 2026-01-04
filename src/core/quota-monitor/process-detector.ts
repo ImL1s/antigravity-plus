@@ -132,7 +132,7 @@ export class ProcessDetector {
                 this.logger.debug(`[Mac] Line parts: ${JSON.stringify(parts)}`); // DEBUG
                 const pid = parseInt(parts[1]);
                 this.logger.debug(`[Mac] Parsed PID: ${pid}`); // DEBUG
-                const cmdLine = parts.slice(10).join(' '); // 假設 Command 從第 11 欄開始
+
 
                 const portMatch = line.match(/--remote-debugging-port=(\d+)/);
                 if (portMatch) {

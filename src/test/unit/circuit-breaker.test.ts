@@ -7,12 +7,7 @@
 import * as assert from 'assert';
 
 // Mock Logger
-const mockLogger = {
-    debug: () => { },
-    info: () => { },
-    warn: () => { },
-    error: () => { }
-};
+
 
 // 複製 CircuitBreaker 核心邏輯
 type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';

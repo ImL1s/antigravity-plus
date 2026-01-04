@@ -13,10 +13,10 @@ class MockLogger {
         dispose: () => { }
     };
 
-    debug(message: string): void { }
-    info(message: string): void { }
-    warn(message: string): void { }
-    error(message: string): void { }
+    debug(msg: string): void { console.log(`[MockLogger] DEBUG: ${msg}`); }
+    info(msg: string): void { console.log(`[MockLogger] INFO: ${msg}`); }
+    warn(msg: string): void { console.log(`[MockLogger] WARN: ${msg}`); }
+    error(msg: string): void { console.error(`[MockLogger] ERROR: ${msg}`); }
     showOutputChannel(): void { }
     dispose(): void { }
 }
@@ -24,34 +24,27 @@ class MockLogger {
 // Mock CDPManager
 class MockCDPManager {
     dispose() { }
-    async tryConnectAndInject(config?: any): Promise<boolean> { return true; }
+    async tryConnectAndInject(_config?: any): Promise<boolean> { return true; }
+}
+
+// Testable subclass to capture commands
+class TestableAutoApproveController extends AutoApproveController {
+    public commandCalls: string[] = [];
+
+    protected async runCommand(command: string, ..._args: any[]): Promise<any> {
+        this.commandCalls.push(command);
+        return undefined; // Don't actually execute during test
+    }
 }
 
 suite('Auto Approve Integration Tests', () => {
-    let controller: AutoApproveController;
+    let controller: TestableAutoApproveController;
     let configManager: ConfigManager;
     let logger: Logger;
-    let originalExecuteCommand: any;
-    let commandCalls: string[] = [];
 
     setup(() => {
-        console.log('Test Setup: Start');
         logger = new MockLogger() as unknown as Logger;
-        console.log('Test Setup: Logger created');
         configManager = new ConfigManager();
-        console.log('Test Setup: ConfigManager created');
-
-        // Manual Spy on vscode.commands.executeCommand
-        originalExecuteCommand = vscode.commands.executeCommand;
-        commandCalls = [];
-        (vscode.commands as any).executeCommand = async (command: string, ...args: any[]) => {
-            commandCalls.push(command);
-            // Don't actually execute potentially missing commands to avoid errors
-            if (command.startsWith('antigravity.')) {
-                return undefined;
-            }
-            return originalExecuteCommand.call(vscode.commands, command, ...args);
-        };
 
         const context = {
             subscriptions: [],
@@ -61,27 +54,23 @@ suite('Auto Approve Integration Tests', () => {
             logPath: '',
             asAbsolutePath: (p: string) => p,
             globalState: {
-                get: (key: string) => undefined,
-                update: (key: string, value: any) => Promise.resolve(),
+                get: (_key: string) => undefined,
+                update: (_key: string, _value: any) => Promise.resolve(),
                 keys: () => []
             },
             workspaceState: {
-                get: (key: string) => undefined,
-                update: (key: string, value: any) => Promise.resolve(),
+                get: (_key: string) => undefined,
+                update: (_key: string, _value: any) => Promise.resolve(),
                 keys: () => []
             }
         } as unknown as vscode.ExtensionContext;
 
         const mockCdp = new MockCDPManager() as unknown as any;
-        console.log('Test Setup: Creating Controller');
-        controller = new AutoApproveController(context, logger as unknown as Logger, configManager, mockCdp);
-        console.log('Test Setup: Controller created');
+        controller = new TestableAutoApproveController(context, logger, configManager, mockCdp);
     });
 
     teardown(() => {
         if (controller) controller.dispose();
-        // Restore spy
-        (vscode.commands as any).executeCommand = originalExecuteCommand;
     });
 
     test('Controller should initialize', () => {
@@ -89,16 +78,11 @@ suite('Auto Approve Integration Tests', () => {
     });
 
     test('Pesosz Strategy should invoke expected internal commands', async () => {
-        // Manually trigger polling logic via type assertion
-        // We need to ensure logic thinks strategy is 'pesosz'
-        // Since we can't easily mock workspace.getConfiguration in integration without sinon (it's read-only prop),
-        // we might rely on default or current config. 
-        // Default is 'pesosz' in package.json, so it should work by default!
-
+        controller.enable();
         await (controller as any).poll();
 
-        const hasAgentAccept = commandCalls.includes('antigravity.agent.acceptAgentStep');
-        const hasTerminalAccept = commandCalls.includes('antigravity.terminal.accept');
+        const hasAgentAccept = controller.commandCalls.includes('antigravity.agent.acceptAgentStep');
+        const hasTerminalAccept = controller.commandCalls.includes('antigravity.terminal.accept');
 
         assert.ok(hasAgentAccept, 'Should call antigravity.agent.acceptAgentStep');
         assert.ok(hasTerminalAccept, 'Should call antigravity.terminal.accept');

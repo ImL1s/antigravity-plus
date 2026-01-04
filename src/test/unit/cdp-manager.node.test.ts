@@ -35,13 +35,14 @@ class MockWebSocket extends EventEmitter {
         console.log('MockWebSocket created for', url);
         setTimeout(() => this.emit('open'), 10);
     }
-    send(msg: string) { }
+    send(_msg: string) { }
     terminate() { }
     close() { }
     static OPEN = 1;
 }
 
 // Mock Require for HTTP only (since CDPManager uses http)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 Module.prototype.require = function (path: string, ...args: any[]) {

@@ -107,7 +107,7 @@ export class AutoWakeupController implements vscode.Disposable {
         let success = false;
         let error: string | undefined;
         let tokensUsed = 0;
-        let model = this.selectModel();
+        const model = this.selectModel();
 
         try {
             const result = await this.trigger.execute(model);

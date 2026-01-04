@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { ImpactTracker, ImpactStats } from '../core/auto-approve/impact-tracker';
 import { PerformanceModeController } from '../core/auto-approve/performance-mode';
 import { AutoWakeupController, WakeupConfig } from '../core/auto-wakeup/controller';
-import { t } from '../i18n';
+
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;

@@ -8,11 +8,12 @@
 
 import { Logger } from '../utils/logger';
 import WebSocket from 'ws';
+import * as http from 'http';
 
 export class CDPClient {
     private ws: WebSocket | undefined;
     private messageId = 0;
-    private pendingMessages: Map<number, { resolve: Function; reject: Function }> = new Map();
+    private pendingMessages: Map<number, { resolve: (value: any) => void; reject: (reason?: any) => void }> = new Map();
     private connected = false;
 
     constructor(private logger: Logger) { }
@@ -90,8 +91,6 @@ export class CDPClient {
      */
     private httpGet(url: string): Promise<string> {
         return new Promise((resolve, reject) => {
-            const http = require('http');
-
             http.get(url, { timeout: 3000 }, (res: any) => {
                 let data = '';
                 res.on('data', (chunk: string) => data += chunk);
@@ -156,7 +155,7 @@ export class CDPClient {
     /**
      * 處理 CDP 事件
      */
-    private handleEvent(method: string, params: any): void {
+    private handleEvent(method: string, _params: any): void {
         // 可以在這裡監聽特定事件
         this.logger.debug(`CDP 事件: ${method}`);
     }

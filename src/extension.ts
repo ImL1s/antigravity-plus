@@ -196,6 +196,21 @@ function registerCommands(context: vscode.ExtensionContext): void {
             vscode.window.showInformationMessage('Auto Wake-up 測試已執行');
         })
     );
+
+    // 切換 Auto Wake-up (Background)
+    context.subscriptions.push(
+        vscode.commands.registerCommand('antigravity-plus.toggleAutoWakeup', async () => {
+            const config = wakeupController?.getConfig();
+            if (config) {
+                const newState = !config.enabled;
+                await wakeupController?.updateConfig({ enabled: newState });
+                const message = newState
+                    ? 'Auto Wake-up (Background Service) Enabled'
+                    : 'Auto Wake-up (Background Service) Disabled';
+                vscode.window.showInformationMessage(message);
+            }
+        })
+    );
 }
 
 /**
