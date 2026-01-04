@@ -46,9 +46,8 @@ export class StatusBarManager implements vscode.Disposable {
             201
         );
         this.quotaItem.command = 'antigravity-plus.openDashboard';
-        this.quotaItem.text = `$(sync~spin) 配額載入中...`;
+        this.quotaItem.text = `$(sync~spin) ${t('statusBar.quota.loading') || '配額載入中...'}`;
         this.quotaItem.tooltip = t('statusBar.quota.loading') || 'Loading quota...';
-        this.quotaItem.show();
 
         // 1. Auto Accept (最右邊)
         this.autoApproveItem = vscode.window.createStatusBarItem(
@@ -56,8 +55,6 @@ export class StatusBarManager implements vscode.Disposable {
             200
         );
         this.autoApproveItem.command = 'antigravity-plus.toggleAutoApprove';
-        this.updateAutoApproveState(false);
-        this.autoApproveItem.show();
 
         // 2. Background Status
         this.backgroundItem = vscode.window.createStatusBarItem(
@@ -65,9 +62,6 @@ export class StatusBarManager implements vscode.Disposable {
             199
         );
         this.backgroundItem.command = 'antigravity-plus.toggleAutoWakeup';
-        this.updateBackgroundState(false);
-        // ✅ 對標 Auto Accept Agent: 預設隱藏，只在 Auto Approve ON 時顯示
-        // this.backgroundItem.show();  // 移除預設 show
 
         // 3. Settings (最左邊的固定項目)
         this.settingsItem = vscode.window.createStatusBarItem(
@@ -77,7 +71,16 @@ export class StatusBarManager implements vscode.Disposable {
         this.settingsItem.text = `$(gear) Antigravity`;
         this.settingsItem.tooltip = t('statusBar.settings.tooltip') || 'Open Antigravity Plus Settings';
         this.settingsItem.command = 'antigravity-plus.openDashboard';
+
+        // === 初始化狀態 (在建立完所有項目後) ===
+        this.updateAutoApproveState(false);
+        this.updateBackgroundState(false);
+
+        // === 顯示項目 ===
+        this.quotaItem.show();
+        this.autoApproveItem.show();
         this.settingsItem.show();
+        // backgroundItem.show() 由 updateAutoApproveState(true) 控制
 
         // 註冊清理
         context.subscriptions.push(
@@ -98,6 +101,8 @@ export class StatusBarManager implements vscode.Disposable {
      */
     public updateAutoApproveState(enabled: boolean): void {
         this.autoApproveEnabled = enabled;
+
+        if (!this.autoApproveItem || !this.backgroundItem) return;
 
         if (enabled) {
             this.autoApproveItem.text = `$(check) Auto Accept: ON`;
@@ -121,6 +126,8 @@ export class StatusBarManager implements vscode.Disposable {
      */
     public updateBackgroundState(enabled: boolean): void {
         this.backgroundEnabled = enabled;
+
+        if (!this.backgroundItem) return;
 
         if (enabled) {
             this.backgroundItem.text = `$(globe) Background: ON`;
