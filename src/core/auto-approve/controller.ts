@@ -84,7 +84,7 @@ export class AutoApproveController implements vscode.Disposable {
      * Start the polling loop based on configured strategy
      */
     private startPolling(): void {
-        const intervalMs = this.configManager.get<number>('autoApprove.interval') ?? 1000;
+        const intervalMs = this.configManager.get<number>('autoApprove.interval') ?? 200;
 
         if (this.intervalId) {
             clearInterval(this.intervalId);
