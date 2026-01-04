@@ -2,7 +2,7 @@
   "name": "antigravity-plus",
   "displayName": "Antigravity Plus",
   "description": "Auto-approve AI Agent requests + Quota monitoring — The ultimate productivity tool for Google Antigravity",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "ImL1s",
   "engines": {
     "vscode": "^1.85.0"
