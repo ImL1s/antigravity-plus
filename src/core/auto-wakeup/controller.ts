@@ -51,7 +51,7 @@ export class AutoWakeupController implements vscode.Disposable {
         this.config = this.loadConfig();
         this.scheduler = new WakeupScheduler(logger);
         this.systemScheduler = new SystemScheduler(logger);
-        this.trigger = new WakeupTrigger(logger);
+        this.trigger = new WakeupTrigger(logger, context);
         this.history = new WakeupHistory(context);
 
         // 綁定排程器回調

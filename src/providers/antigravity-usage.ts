@@ -1,26 +1,37 @@
 /**
- * Antigravity 用量資料提供者
+ * Antigravity 用量資料提供者 (重構版)
  * 
- * 參考 AntigravityQuotaWatcher 的實作
+ * 參考 jlcodes99/vscode-antigravity-cockpit 的正確實作
  * 
- * 工作原理：
- * 1. 檢測 Antigravity/language server 進程
- * 2. 提取端口和認證信息
- * 3. 呼叫內部 API (GetUserStatus) 獲取配額
+ * 關鍵發現：
+ * 1. 使用 HTTPS 連接到 127.0.0.1:port
+ * 2. Header 需要 X-Codeium-Csrf-Token
+ * 3. API 端點是 /exa.language_server_pb.LanguageServerService/GetUserStatus
  */
 
 import { Logger } from '../utils/logger';
 import { QuotaData, ModelQuota } from '../core/quota-monitor/controller';
-import * as http from 'http';
+import * as https from 'https';
 import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+// 常數
+const API_ENDPOINT = '/exa.language_server_pb.LanguageServerService/GetUserStatus';
+const HTTP_TIMEOUT_MS = 10000;
+const PROCESS_CMD_TIMEOUT_MS = 15000;
+
 interface AntigravityConnection {
     port: number;
-    authToken: string;
+    csrfToken: string;
+}
+
+interface ProcessInfo {
+    pid: number;
+    port: number;
+    csrfToken: string;
 }
 
 export class AntigravityUsageProvider {
@@ -45,8 +56,8 @@ export class AntigravityUsageProvider {
                 return undefined;
             }
 
-            // 呼叫 GetUserStatus API
-            const response = await this.callApi('GetUserStatus', {});
+            // 呼叫 GetUserStatus API (使用正確的方式)
+            const response = await this.callApi();
 
             if (response) {
                 return this.parseQuotaResponse(response);
@@ -68,13 +79,12 @@ export class AntigravityUsageProvider {
     }
 
     /**
-     * 檢測 Antigravity 連接
+     * 檢測 Antigravity 連接 (參考競品 ProcessHunter)
      */
     protected async detectConnection(): Promise<void> {
         this.logger.debug('正在檢測 Antigravity 連接...');
 
         try {
-            // 根據作業系統選擇檢測方法
             const platform = os.platform();
 
             if (platform === 'win32') {
@@ -93,31 +103,39 @@ export class AntigravityUsageProvider {
     }
 
     /**
-     * Windows 系統連接檢測
+     * Windows 系統連接檢測 (參考競品 WindowsStrategy)
      */
     private async detectConnectionWindows(): Promise<void> {
         try {
-            // 使用 PowerShell 查找 Antigravity 進程
-            const { stdout } = await execAsync(
-                `powershell -Command "Get-Process | Where-Object {$_.ProcessName -like '*antigravity*' -or $_.ProcessName -like '*code*'} | Select-Object -ExpandProperty Id"`,
-                { timeout: 10000 }
-            );
+            // 使用 PowerShell 查找 Antigravity Language Server 進程
+            // 關鍵：從命令行參數中提取 csrf_token
+            const cmd = `powershell -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'csrf_token' } | Select-Object ProcessId, CommandLine | ConvertTo-Json"`;
 
-            const pids = stdout.trim().split('\n').filter(Boolean);
+            const { stdout } = await execAsync(cmd, { timeout: PROCESS_CMD_TIMEOUT_MS });
 
-            for (const pid of pids) {
-                const connection = await this.tryExtractConnectionFromProcess(pid.trim());
-                if (connection) {
-                    this.connection = connection;
-                    return;
-                }
+            if (!stdout || !stdout.trim()) {
+                this.logger.debug('未找到 Antigravity 進程');
+                return;
             }
 
-            // 嘗試常見端口
-            await this.tryCommonPorts();
+            const processes = JSON.parse(stdout);
+            const processList = Array.isArray(processes) ? processes : [processes];
+
+            for (const proc of processList) {
+                if (!proc.CommandLine) continue;
+
+                const info = this.parseProcessInfo(proc.ProcessId, proc.CommandLine);
+                if (info) {
+                    // 驗證連接
+                    const verified = await this.verifyConnection(info.port, info.csrfToken);
+                    if (verified) {
+                        this.connection = { port: info.port, csrfToken: info.csrfToken };
+                        return;
+                    }
+                }
+            }
         } catch (error) {
             this.logger.debug(`Windows 連接檢測失敗: ${error}`);
-            await this.tryCommonPorts();
         }
     }
 
@@ -126,200 +144,236 @@ export class AntigravityUsageProvider {
      */
     private async detectConnectionUnix(): Promise<void> {
         try {
-            // 使用 lsof 或 netstat 查找
-            const { stdout } = await execAsync(
-                `lsof -i -P -n | grep -E "(antigravity|language-server)" | grep LISTEN`,
-                { timeout: 10000 }
-            );
+            // 使用 ps 查找包含 csrf_token 的進程
+            const cmd = `ps aux | grep -E 'language_server|antigravity' | grep csrf_token`;
+
+            const { stdout } = await execAsync(cmd, { timeout: PROCESS_CMD_TIMEOUT_MS });
+
+            if (!stdout || !stdout.trim()) {
+                this.logger.debug('未找到 Antigravity 進程');
+                return;
+            }
 
             const lines = stdout.trim().split('\n').filter(Boolean);
 
             for (const line of lines) {
-                const match = line.match(/:(\d+) \(LISTEN\)/);
-                if (match) {
-                    const port = parseInt(match[1]);
-                    const connection = await this.testPort(port);
-                    if (connection) {
-                        this.connection = connection;
+                // 從命令行提取 port 和 csrf_token
+                const portMatch = line.match(/--server_port[=\s]+(\d+)/);
+                const tokenMatch = line.match(/--csrf_token[=\s]+([a-f0-9-]+)/i);
+
+                if (portMatch && tokenMatch) {
+                    const port = parseInt(portMatch[1]);
+                    const csrfToken = tokenMatch[1];
+
+                    const verified = await this.verifyConnection(port, csrfToken);
+                    if (verified) {
+                        this.connection = { port, csrfToken };
                         return;
                     }
                 }
             }
-
-            await this.tryCommonPorts();
         } catch (error) {
             this.logger.debug(`Unix 連接檢測失敗: ${error}`);
-            await this.tryCommonPorts();
         }
     }
 
     /**
-     * 從進程提取連接資訊
+     * 從命令行解析進程資訊
      */
-    private async tryExtractConnectionFromProcess(pid: string): Promise<AntigravityConnection | undefined> {
-        try {
-            // 查找進程監聽的端口
-            const { stdout } = await execAsync(
-                `netstat -ano | findstr ${pid} | findstr LISTENING`,
-                { timeout: 5000 }
-            );
+    private parseProcessInfo(pid: number, commandLine: string): ProcessInfo | undefined {
+        // 提取 server_port
+        const portMatch = commandLine.match(/--server_port[=\s]+(\d+)/);
+        // 提取 csrf_token
+        const tokenMatch = commandLine.match(/--csrf_token[=\s]+([a-f0-9-]+)/i);
 
-            const match = stdout.match(/:(\d+)\s+/);
-            if (match) {
-                const port = parseInt(match[1]);
-                return this.testPort(port);
-            }
-        } catch (error) {
-            // 忽略錯誤
+        if (portMatch && tokenMatch) {
+            return {
+                pid,
+                port: parseInt(portMatch[1]),
+                csrfToken: tokenMatch[1]
+            };
         }
+
         return undefined;
     }
 
     /**
-     * 嘗試常見的端口
+     * 驗證連接是否有效
      */
-    private async tryCommonPorts(): Promise<void> {
-        const commonPorts = [9222, 9333, 9444, 3000, 3001, 8080, 8888];
-
-        for (const port of commonPorts) {
-            const connection = await this.testPort(port);
-            if (connection) {
-                this.connection = connection;
-                return;
-            }
-        }
-    }
-
-    /**
-     * 測試端口是否為 Antigravity 服務
-     */
-    private async testPort(port: number): Promise<AntigravityConnection | undefined> {
+    private async verifyConnection(port: number, csrfToken: string): Promise<boolean> {
         return new Promise((resolve) => {
-            const options = {
-                hostname: 'localhost',
+            const data = JSON.stringify({
+                metadata: {
+                    ideName: 'antigravity',
+                    extensionName: 'antigravity-plus',
+                    locale: 'en'
+                }
+            });
+
+            const options: https.RequestOptions = {
+                hostname: '127.0.0.1',
                 port: port,
-                path: '/json/version',
-                method: 'GET',
-                timeout: 2000
+                path: API_ENDPOINT,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(data),
+                    'Connect-Protocol-Version': '1',
+                    'X-Codeium-Csrf-Token': csrfToken
+                },
+                rejectUnauthorized: false,
+                timeout: 5000
             };
 
-            const req = http.request(options, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
+            const req = https.request(options, (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
                 res.on('end', () => {
                     try {
-                        const json = JSON.parse(data);
-                        if (json.Browser && json.Browser.includes('Antigravity')) {
-                            resolve({
-                                port,
-                                authToken: json.webSocketDebuggerUrl || ''
-                            });
-                            return;
-                        }
+                        const json = JSON.parse(body);
+                        // 如果有 userStatus，則連接有效
+                        resolve(Boolean(json.userStatus));
                     } catch {
-                        // 不是 JSON 回應
+                        resolve(false);
                     }
-                    resolve(undefined);
                 });
             });
 
-            req.on('error', () => resolve(undefined));
+            req.on('error', () => resolve(false));
             req.on('timeout', () => {
                 req.destroy();
-                resolve(undefined);
+                resolve(false);
             });
 
+            req.write(data);
             req.end();
         });
     }
 
     /**
-     * 呼叫 Antigravity API
+     * 呼叫 Antigravity API (正確方式：HTTPS + X-Codeium-Csrf-Token)
      */
-    private async callApi(method: string, params: any): Promise<any> {
+    private async callApi(): Promise<any> {
         if (!this.connection) {
             throw new Error('未連接到 Antigravity');
         }
 
-        const connection = this.connection; // 使用本地變數
+        const { port, csrfToken } = this.connection;
 
         return new Promise((resolve, reject) => {
-            const postData = JSON.stringify({
-                jsonrpc: '2.0',
-                method,
-                params,
-                id: Date.now()
+            const data = JSON.stringify({
+                metadata: {
+                    ideName: 'antigravity',
+                    extensionName: 'antigravity-plus',
+                    locale: 'en'
+                }
             });
 
-            const options = {
-                hostname: 'localhost',
-                port: connection.port,
-                path: '/api',
+            const options: https.RequestOptions = {
+                hostname: '127.0.0.1',
+                port: port,
+                path: API_ENDPOINT,
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(postData),
-                    'Authorization': `Bearer ${connection.authToken}`
+                    'Content-Length': Buffer.byteLength(data),
+                    'Connect-Protocol-Version': '1',
+                    'X-Codeium-Csrf-Token': csrfToken
                 },
-                timeout: 10000
+                rejectUnauthorized: false,
+                timeout: HTTP_TIMEOUT_MS
             };
 
-            const req = http.request(options, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
+            this.logger.debug(`Calling API: ${API_ENDPOINT}`);
+
+            const req = https.request(options, (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
                 res.on('end', () => {
+                    this.logger.debug(`API Response: ${res.statusCode}`);
+
+                    if (!body || !body.trim()) {
+                        reject(new Error('Empty response from server'));
+                        return;
+                    }
+
                     try {
-                        const json = JSON.parse(data);
-                        resolve(json.result);
+                        resolve(JSON.parse(body));
                     } catch {
-                        resolve(undefined);
+                        reject(new Error(`Invalid JSON response`));
                     }
                 });
             });
 
-            req.on('error', reject);
+            req.on('error', (e) => reject(new Error(`Connection failed: ${e.message}`)));
             req.on('timeout', () => {
                 req.destroy();
-                reject(new Error('API 請求超時'));
+                reject(new Error('Request timed out'));
             });
 
-            req.write(postData);
+            req.write(data);
             req.end();
         });
     }
 
     /**
-     * 解析配額回應
+     * 解析配額回應 (參考競品 decodeSignal)
      */
     private parseQuotaResponse(response: any): QuotaData {
         const models: ModelQuota[] = [];
 
-        // 解析模型配額
-        if (response.quotas && Array.isArray(response.quotas)) {
-            for (const quota of response.quotas) {
-                models.push({
-                    name: quota.model || quota.name,
-                    displayName: this.getModelDisplayName(quota.model || quota.name),
-                    used: quota.used || 0,
-                    total: quota.limit || quota.total || 100,
-                    percentage: Math.round(((quota.used || 0) / (quota.limit || quota.total || 100)) * 100),
-                    resetTime: quota.resetTime ? new Date(quota.resetTime) : undefined
-                });
-            }
+        // 驗證回應結構
+        if (!response || !response.userStatus) {
+            this.logger.warn('Invalid response structure');
+            return this.createDefaultQuotaData();
+        }
+
+        const status = response.userStatus;
+        const modelConfigs = status.modelConfigs || [];
+
+        // 解析每個模型的配額
+        for (const config of modelConfigs) {
+            const remainingFraction = config.remainingRequestsFraction;
+            const percentage = remainingFraction !== undefined
+                ? Math.round((1 - remainingFraction) * 100)
+                : 0;
+
+            models.push({
+                name: config.modelId || config.model || 'unknown',
+                displayName: this.getModelDisplayName(config.modelId || config.model || 'unknown'),
+                used: percentage,
+                total: 100,
+                percentage: percentage,
+                resetTime: config.resetTime ? new Date(config.resetTime) : undefined
+            });
         }
 
         // 如果沒有配額資料，創建預設資料
         if (models.length === 0) {
-            models.push(
-                { name: 'gemini-3-pro', displayName: 'Gemini 3 Pro', used: 0, total: 100, percentage: 100 },
-                { name: 'gemini-3-flash', displayName: 'Gemini 3 Flash', used: 0, total: 100, percentage: 100 }
-            );
+            return this.createDefaultQuotaData();
         }
 
         return {
             models,
-            accountLevel: response.accountLevel || response.tier || 'Free',
-            promptCredits: response.promptCredits,
+            accountLevel: status.planStatus?.planInfo?.tier || 'Free',
+            promptCredits: status.planStatus?.availablePromptCredits !== undefined ? {
+                used: 0,
+                total: Number(status.planStatus.planInfo?.monthlyPromptCredits || 0)
+            } : undefined,
+            lastUpdated: new Date()
+        };
+    }
+
+    /**
+     * 創建預設配額資料
+     */
+    private createDefaultQuotaData(): QuotaData {
+        return {
+            models: [
+                { name: 'gemini-3-pro', displayName: 'Gemini 3 Pro', used: 0, total: 100, percentage: 0 },
+                { name: 'gemini-3-flash', displayName: 'Gemini 3 Flash', used: 0, total: 100, percentage: 0 }
+            ],
+            accountLevel: 'Unknown',
             lastUpdated: new Date()
         };
     }

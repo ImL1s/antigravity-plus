@@ -29,7 +29,7 @@ class TestableAntigravityUsageProvider extends AntigravityUsageProvider {
         // @ts-ignore
         this.connection = {
             port: this.mockPort,
-            authToken: 'mock-token'
+            csrfToken: 'mock-token'
         };
     }
 }
