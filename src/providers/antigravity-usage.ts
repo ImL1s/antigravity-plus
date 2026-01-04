@@ -317,7 +317,7 @@ export class AntigravityUsageProvider {
     }
 
     /**
-     * 解析配額回應 (參考競品 decodeSignal)
+     * 解析配額回應 (對標 Cockpit reactor.ts decodeSignal)
      */
     private parseQuotaResponse(response: any): QuotaData {
         const models: ModelQuota[] = [];
@@ -329,22 +329,44 @@ export class AntigravityUsageProvider {
         }
 
         const status = response.userStatus;
-        const modelConfigs = status.modelConfigs || [];
+        const plan = status.planStatus?.planInfo;
+
+        // ✅ 對標 Cockpit: 使用 cascadeModelConfigData.clientModelConfigs
+        const modelConfigs = status.cascadeModelConfigData?.clientModelConfigs || [];
 
         // 解析每個模型的配額
         for (const config of modelConfigs) {
-            const remainingFraction = config.remainingRequestsFraction;
-            const percentage = remainingFraction !== undefined
-                ? Math.round((1 - remainingFraction) * 100)
+            // ✅ 對標 Cockpit: 使用 quotaInfo.remainingFraction
+            const quotaInfo = config.quotaInfo;
+            if (!quotaInfo) continue;  // 跳過沒有配額資訊的模型
+
+            const remainingFraction = quotaInfo.remainingFraction;
+            const remainingPercentage = remainingFraction !== undefined
+                ? remainingFraction * 100  // ✅ 剩餘百分比 (不是已使用)
                 : 0;
 
+            const resetTime = quotaInfo.resetTime ? new Date(quotaInfo.resetTime) : new Date();
+            const now = new Date();
+            const timeUntilReset = resetTime.getTime() - now.getTime();
+
+            // ✅ 對標 Cockpit: 使用 label 和 modelOrAlias.model
             models.push({
-                name: config.modelId || config.model || 'unknown',
-                displayName: this.getModelDisplayName(config.modelId || config.model || 'unknown'),
-                used: percentage,
+                name: config.modelOrAlias?.model || 'unknown',
+                displayName: config.label || this.getModelDisplayName(config.modelOrAlias?.model || 'unknown'),
+                used: Math.round(100 - remainingPercentage),  // 已使用百分比
                 total: 100,
-                percentage: percentage,
-                resetTime: config.resetTime ? new Date(config.resetTime) : undefined
+                percentage: Math.round(100 - remainingPercentage),  // 已使用百分比
+                resetTime: resetTime,
+                // ✅ 新增欄位 (對標 Cockpit)
+                remainingFraction: remainingFraction,
+                remainingPercentage: remainingPercentage,
+                isExhausted: remainingFraction === 0,
+                timeUntilReset: timeUntilReset,
+                timeUntilResetFormatted: this.formatDelta(timeUntilReset),
+                // 能力欄位
+                supportsImages: config.supportsImages,
+                isRecommended: config.isRecommended,
+                tagTitle: config.tagTitle,
             });
         }
 
@@ -353,15 +375,53 @@ export class AntigravityUsageProvider {
             return this.createDefaultQuotaData();
         }
 
+        // ✅ 對標 Cockpit: 解析 PromptCredits
+        const credits = status.planStatus?.availablePromptCredits;
+        let promptCredits: { used: number; total: number; usedPercentage?: number; remainingPercentage?: number } | undefined;
+
+        if (plan && credits !== undefined) {
+            const monthlyLimit = Number(plan.monthlyPromptCredits || 0);
+            const availableVal = Number(credits);
+
+            if (monthlyLimit > 0) {
+                promptCredits = {
+                    used: monthlyLimit - availableVal,
+                    total: monthlyLimit,
+                    usedPercentage: ((monthlyLimit - availableVal) / monthlyLimit) * 100,
+                    remainingPercentage: (availableVal / monthlyLimit) * 100,
+                };
+            }
+        }
+
         return {
             models,
-            accountLevel: status.planStatus?.planInfo?.tier || 'Free',
-            promptCredits: status.planStatus?.availablePromptCredits !== undefined ? {
-                used: 0,
-                total: Number(status.planStatus.planInfo?.monthlyPromptCredits || 0)
-            } : undefined,
-            lastUpdated: new Date()
+            accountLevel: status.userTier?.name || plan?.teamsTier || 'Free',
+            promptCredits,
+            lastUpdated: new Date(),
+            // ✅ 新增欄位
+            userInfo: {
+                name: status.name || 'Unknown',
+                email: status.email || 'N/A',
+                tier: status.userTier?.name || 'N/A',
+            }
         };
+    }
+
+    /**
+     * 格式化倒計時 (對標 Cockpit formatDelta)
+     */
+    private formatDelta(ms: number): string {
+        if (ms <= 0) return 'Ready';
+
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (days > 0) return `${days}d ${hours % 24}h`;
+        if (hours > 0) return `${hours}h ${minutes % 60}m`;
+        if (minutes > 0) return `${minutes}m`;
+        return `${seconds}s`;
     }
 
     /**

@@ -16,13 +16,29 @@ import { ConfigManager } from '../../utils/config';
 import { StatusBarManager } from '../../ui/status-bar';
 import { AntigravityUsageProvider } from '../../providers/antigravity-usage';
 
+/**
+ * 模型配額資訊介面 (對標 Cockpit ModelQuotaInfo)
+ */
 export interface ModelQuota {
-    name: string;
-    displayName: string;
-    used: number;
-    total: number;
-    percentage: number;
+    // 基本欄位
+    name: string;           // modelId
+    displayName: string;    // label
+    used: number;           // 已使用百分比
+    total: number;          // 總量 (固定 100)
+    percentage: number;     // 已使用百分比
     resetTime?: Date;
+
+    // ✅ 新增欄位 (對標 Cockpit)
+    remainingFraction?: number;         // 剩餘比例 (0-1)
+    remainingPercentage?: number;       // 剩餘百分比 (0-100)
+    isExhausted?: boolean;              // 是否已耗盡
+    timeUntilReset?: number;            // 距離重置毫秒數
+    timeUntilResetFormatted?: string;   // 格式化倒計時
+
+    // 能力欄位
+    supportsImages?: boolean;
+    isRecommended?: boolean;
+    tagTitle?: string;
 }
 
 export interface UsageSession {
@@ -34,14 +50,29 @@ export interface UsageSession {
     model: string;
 }
 
+/**
+ * 使用者資訊介面
+ */
+export interface UserInfo {
+    name: string;
+    email: string;
+    tier: string;
+}
+
+/**
+ * 配額快照資料介面 (對標 Cockpit QuotaSnapshot)
+ */
 export interface QuotaData {
     models: ModelQuota[];
     accountLevel: string;
     promptCredits?: {
         used: number;
         total: number;
+        usedPercentage?: number;
+        remainingPercentage?: number;
     };
     lastUpdated: Date;
+    userInfo?: UserInfo;  // ✅ 新增使用者資訊
 }
 
 export class QuotaMonitorController implements vscode.Disposable {
