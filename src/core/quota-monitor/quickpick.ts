@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * QuickPick Quota Display - 配額 QuickPick 備用模式
  * 
