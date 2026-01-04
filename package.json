@@ -3,7 +3,7 @@
   "displayName": "Antigravity Plus",
   "description": "自動核准 AI Agent 請求 + 用量監控 — 為 Google Antigravity 打造的效率工具",
   "version": "0.0.1",
-  "publisher": "antigravity-plus",
+  "publisher": "ImL1s",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -222,7 +222,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/antigravity-plus"
+    "url": "https://github.com/ImL1s/antigravity-plus"
   },
   "license": "MIT",
   "icon": "resources/icons/icon.png"
