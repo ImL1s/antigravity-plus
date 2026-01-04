@@ -70,44 +70,69 @@ export class CDPManager implements vscode.Disposable {
 
     private checkPort(port: number): Promise<boolean> {
         return new Promise((resolve) => {
+            const timeout = setTimeout(() => resolve(false), 1000); // 1秒超時
             const req = http.get(`http://127.0.0.1:${port}/json/version`, (res) => {
+                clearTimeout(timeout);
                 resolve(res.statusCode === 200);
             });
-            req.on('error', () => resolve(false));
+            req.on('error', () => {
+                clearTimeout(timeout);
+                resolve(false);
+            });
+            req.setTimeout(1000, () => {
+                req.destroy();
+                resolve(false);
+            });
             req.end();
         });
     }
 
     private findPageTarget(port: number): Promise<CDPTarget | undefined> {
         return new Promise((resolve, reject) => {
-            http.get(`http://127.0.0.1:${port}/json/list`, (res) => {
+            const timeout = setTimeout(() => resolve(undefined), 2000); // 2秒超時
+            const req = http.get(`http://127.0.0.1:${port}/json/list`, (res) => {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
+                    clearTimeout(timeout);
                     try {
                         const targets = JSON.parse(data) as CDPTarget[];
-                        // Look for a page that looks like a window (often type 'page' or 'webview')
                         const target = targets.find(t => t.webSocketDebuggerUrl && (t.type === 'page' || t.type === 'webview'));
                         resolve(target);
                     } catch (e) {
                         reject(e);
                     }
                 });
-            }).on('error', reject);
+            });
+            req.on('error', (e) => {
+                clearTimeout(timeout);
+                reject(e);
+            });
+            req.setTimeout(2000, () => {
+                req.destroy();
+                resolve(undefined);
+            });
         });
     }
 
     private connectToWebSocket(url: string): Promise<void> {
         return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.logger.warn('WebSocket connection timeout');
+                reject(new Error('WebSocket connection timeout'));
+            }, 5000); // 5秒超時
+
             this.connectedSocket = new this.WebSocketCtor(url);
 
             this.connectedSocket.on('open', async () => {
+                clearTimeout(timeout);
                 this.isConnectorActive = true;
                 this.logger.info('Connected to CDP WebSocket');
                 resolve();
             });
 
             this.connectedSocket.on('error', (e) => {
+                clearTimeout(timeout);
                 this.logger.error(`CDP WebSocket Error: ${e}`);
                 this.isConnectorActive = false;
                 reject(e);

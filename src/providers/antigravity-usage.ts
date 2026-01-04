@@ -18,10 +18,10 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-// 常數
+// 常數（優化後：競品使用 10s/15s，我們取中間平衡值）
 const API_ENDPOINT = '/exa.language_server_pb.LanguageServerService/GetUserStatus';
-const HTTP_TIMEOUT_MS = 10000;
-const PROCESS_CMD_TIMEOUT_MS = 15000;
+const HTTP_TIMEOUT_MS = 5000;  // 原 10000ms，平衡快速失敗與穩定性
+const PROCESS_CMD_TIMEOUT_MS = 8000;  // 原 15000ms，平衡 PowerShell 冷啟動
 
 interface AntigravityConnection {
     port: number;
