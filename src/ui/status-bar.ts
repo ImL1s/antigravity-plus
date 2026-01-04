@@ -66,7 +66,8 @@ export class StatusBarManager implements vscode.Disposable {
         );
         this.backgroundItem.command = 'antigravity-plus.toggleAutoWakeup';
         this.updateBackgroundState(false);
-        this.backgroundItem.show();
+        // ✅ 對標 Auto Accept Agent: 預設隱藏，只在 Auto Approve ON 時顯示
+        // this.backgroundItem.show();  // 移除預設 show
 
         // 3. Settings (最左邊的固定項目)
         this.settingsItem = vscode.window.createStatusBarItem(
@@ -101,9 +102,13 @@ export class StatusBarManager implements vscode.Disposable {
         if (enabled) {
             this.autoApproveItem.text = `$(check) Auto Accept: ON`;
             this.autoApproveItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+            // ✅ 對標 Auto Accept Agent: 開啟時顯示 Background 項目
+            this.backgroundItem.show();
         } else {
             this.autoApproveItem.text = `$(circle-slash) Auto Accept: OFF`;
             this.autoApproveItem.backgroundColor = undefined;
+            // ✅ 對標 Auto Accept Agent: 關閉時隱藏 Background 項目
+            this.backgroundItem.hide();
         }
 
         this.autoApproveItem.tooltip = t('statusBar.autoApprove.tooltip');

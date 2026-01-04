@@ -38,6 +38,7 @@ export class AntigravityUsageProvider {
     protected connection: AntigravityConnection | undefined;
     private connectionRetries = 0;
     private readonly MAX_RETRIES = 3;
+    private hasSuccessfulSync = false;  // ✅ 對標 Cockpit: 追蹤是否成功過
 
     constructor(private logger: Logger) { }
 
@@ -60,6 +61,8 @@ export class AntigravityUsageProvider {
             const response = await this.callApi();
 
             if (response) {
+                this.hasSuccessfulSync = true;  // 標記成功
+                this.connectionRetries = 0;    // 重置重試計數
                 return this.parseQuotaResponse(response);
             }
 
@@ -76,6 +79,39 @@ export class AntigravityUsageProvider {
 
             return undefined;
         }
+    }
+
+    /**
+     * 帶指數退避的初始化連接 (對標 Cockpit reactor.ts:177-208)
+     * 
+     * @param maxRetries 最大重試次數
+     * @param currentRetry 當前重試次數
+     */
+    public async initWithRetry(maxRetries = 3, currentRetry = 0): Promise<QuotaData | undefined> {
+        try {
+            return await this.fetchQuota();
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
+
+            if (currentRetry < maxRetries) {
+                // 指數退避: 2s, 4s, 6s
+                const delay = 2000 * (currentRetry + 1);
+                this.logger.warn(`初始化失敗，重試 ${currentRetry + 1}/${maxRetries} (等待 ${delay}ms): ${err.message}`);
+
+                await this.delay(delay);
+                return this.initWithRetry(maxRetries, currentRetry + 1);
+            }
+
+            this.logger.error(`初始化失敗，已達最大重試次數 (${maxRetries}): ${err.message}`);
+            return undefined;
+        }
+    }
+
+    /**
+     * 延遲輔助函數
+     */
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**

@@ -42,21 +42,22 @@ export class GroupingManager {
     }
 
     /**
-     * 根據模型建立分組
+     * 根據模型建立分組 (對標 Cockpit 動態分組邏輯)
      */
     public createGroups(models: ModelQuota[]): QuotaGroup[] {
         this.groups.clear();
 
-        // 按配額池分組
+        // ✅ 對標 Cockpit: 基於 remainingFraction + resetTime 動態分組
         const poolMap = new Map<string, ModelQuota[]>();
 
         for (const model of models) {
-            const pool = this.getPoolForModel(model.name);
+            // 生成動態 groupId (Cockpit 方式)
+            const groupId = this.generateGroupId(model);
 
-            if (!poolMap.has(pool)) {
-                poolMap.set(pool, []);
+            if (!poolMap.has(groupId)) {
+                poolMap.set(groupId, []);
             }
-            poolMap.get(pool)!.push(model);
+            poolMap.get(groupId)!.push(model);
         }
 
         // 建立分組物件
@@ -71,7 +72,25 @@ export class GroupingManager {
     }
 
     /**
-     * 取得模型的配額池
+     * 生成動態 groupId (對標 Cockpit reactor.ts:531)
+     * 
+     * 基於 remainingFraction + resetTime 生成簽名，
+     * 共享相同配額池的模型會自動歸為同一組
+     */
+    private generateGroupId(model: ModelQuota): string {
+        // 如果有精確的 remainingFraction，使用 Cockpit 方式
+        if (model.remainingFraction !== undefined && model.resetTime) {
+            const fraction = model.remainingFraction;
+            const resetTime = model.resetTime.getTime();
+            return `${fraction.toFixed(6)}_${resetTime}`;
+        }
+
+        // Fallback: 使用舊的靜態映射
+        return this.getPoolForModel(model.name);
+    }
+
+    /**
+     * 取得模型的配額池 (Fallback 靜態映射)
      */
     private getPoolForModel(modelName: string): string {
         // Note: 更長的 pattern 必須放在前面以確保正確匹配
