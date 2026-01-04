@@ -59,7 +59,17 @@ suite('Auto Approve Integration Tests', () => {
             storagePath: '',
             globalStoragePath: '',
             logPath: '',
-            asAbsolutePath: (p: string) => p
+            asAbsolutePath: (p: string) => p,
+            globalState: {
+                get: (key: string) => undefined,
+                update: (key: string, value: any) => Promise.resolve(),
+                keys: () => []
+            },
+            workspaceState: {
+                get: (key: string) => undefined,
+                update: (key: string, value: any) => Promise.resolve(),
+                keys: () => []
+            }
         } as unknown as vscode.ExtensionContext;
 
         const mockCdp = new MockCDPManager() as unknown as any;

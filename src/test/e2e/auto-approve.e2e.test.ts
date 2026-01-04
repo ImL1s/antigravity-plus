@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 
 suite('E2E Tests - Auto Approve', () => {
     suiteSetup(async () => {
-        const extension = vscode.extensions.getExtension('antigravity-plus.antigravity-plus');
+        const extension = vscode.extensions.getExtension('ImL1s.antigravity-plus');
         if (extension && !extension.isActive) {
             await extension.activate();
         }

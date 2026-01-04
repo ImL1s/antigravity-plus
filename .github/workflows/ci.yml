@@ -31,6 +31,14 @@ jobs:
       - name: Run Unit Tests
         run: npm run test:unit
 
+      - name: Run Smoke Tests
+        run: xvfb-run -a npm run test:smoke
+
+      - name: Verify VSIX Packaging
+        run: |
+          npm install -g @vscode/vsce
+          vsce package -o verify.vsix
+
   release:
     needs: build
     runs-on: ubuntu-latest

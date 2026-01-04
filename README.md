@@ -144,7 +144,7 @@ npm run test:integration
 ```
 
 **Test Coverage:**
-- 104 Unit Tests
+- 106 Unit Tests
 - 24 E2E Tests
 - 128 Total Tests ✅
 

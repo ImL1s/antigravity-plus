@@ -12,7 +12,7 @@ suite('Smoke Tests', () => {
 
     suite('擴展載入', () => {
         test('擴展應該成功啟動', async () => {
-            const extension = vscode.extensions.getExtension('antigravity-plus.antigravity-plus');
+            const extension = vscode.extensions.getExtension('ImL1s.antigravity-plus');
             assert.ok(extension, '擴展應該存在');
 
             if (extension && !extension.isActive) {
