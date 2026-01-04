@@ -236,7 +236,7 @@ export class AntigravityUsageProvider {
     /**
      * 驗證連接是否有效
      */
-    private async verifyConnection(port: number, csrfToken: string): Promise<boolean> {
+    protected async verifyConnection(port: number, csrfToken: string): Promise<boolean> {
         return new Promise((resolve) => {
             const data = JSON.stringify({
                 metadata: {
@@ -289,7 +289,7 @@ export class AntigravityUsageProvider {
     /**
      * 呼叫 Antigravity API (正確方式：HTTPS + X-Codeium-Csrf-Token)
      */
-    private async callApi(): Promise<any> {
+    protected async callApi(): Promise<any> {
         if (!this.connection) {
             throw new Error('未連接到 Antigravity');
         }

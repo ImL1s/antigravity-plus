@@ -32,6 +32,66 @@ class TestableAntigravityUsageProvider extends AntigravityUsageProvider {
             csrfToken: 'mock-token'
         };
     }
+
+    // Override callApi to use HTTP instead of HTTPS (since Mock Server is HTTP)
+    protected async callApi(): Promise<any> {
+        if (!this.connection) {
+            throw new Error('Not connected');
+        }
+
+        const { port, csrfToken } = this.connection;
+        const API_ENDPOINT = '/exa.language_server_pb.LanguageServerService/GetUserStatus';
+
+        return new Promise((resolve, reject) => {
+            const data = JSON.stringify({
+                metadata: {
+                    ideName: 'antigravity',
+                    extensionName: 'antigravity-plus',
+                    locale: 'en'
+                }
+            });
+
+            const options: http.RequestOptions = {
+                hostname: '127.0.0.1',
+                port: port,
+                path: API_ENDPOINT,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(data),
+                    'Connect-Protocol-Version': '1',
+                    'X-Codeium-Csrf-Token': csrfToken
+                },
+                timeout: 5000
+            };
+
+            const req = http.request(options, (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
+                res.on('end', () => {
+                    if (!body || !body.trim()) {
+                        reject(new Error('Empty response from server'));
+                        return;
+                    }
+
+                    try {
+                        resolve(JSON.parse(body));
+                    } catch {
+                        reject(new Error(`Invalid JSON response: ${body}`));
+                    }
+                });
+            });
+
+            req.on('error', (e) => reject(new Error(`Connection failed: ${e.message}`)));
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new Error('Request timed out'));
+            });
+
+            req.write(data);
+            req.end();
+        });
+    }
 }
 
 suite('Integration Tests - Antigravity Mock', () => {
