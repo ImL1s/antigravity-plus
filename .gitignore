@@ -1,0 +1,10 @@
+node_modules/
+out/
+*.vsix
+.DS_Store
+Thumbs.db
+*.log
+.vscode-test/
+*.txt
+.eslintcache
+.vscode/

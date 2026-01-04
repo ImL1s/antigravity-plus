@@ -1,0 +1,229 @@
+{
+  "name": "antigravity-plus",
+  "displayName": "Antigravity Plus",
+  "description": "自動核准 AI Agent 請求 + 用量監控 — 為 Google Antigravity 打造的效率工具",
+  "version": "0.0.1",
+  "publisher": "antigravity-plus",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "antigravity",
+    "ai",
+    "agent",
+    "auto-approve",
+    "quota",
+    "monitor",
+    "gemini"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "antigravity-plus.openDashboard",
+        "title": "Open Dashboard",
+        "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.toggleAutoApprove",
+        "title": "Toggle Auto Approve",
+        "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.refreshQuota",
+        "title": "Refresh Quota",
+        "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.resetSession",
+        "title": "Reset Session",
+        "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.showLogs",
+        "title": "Show Operation Logs",
+        "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.showQuickPick",
+        "title": "Show Quota Quick Pick",
+        "category": "Antigravity Plus"
+      }
+    ],
+    "configuration": {
+      "title": "Antigravity Plus",
+      "properties": {
+        "antigravity-plus.autoApprove.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "啟用自動核准 AI Agent 請求"
+        },
+        "antigravity-plus.autoApprove.fileOperations": {
+          "type": "boolean",
+          "default": true,
+          "description": "自動接受檔案編輯操作"
+        },
+        "antigravity-plus.autoApprove.terminalCommands": {
+          "type": "boolean",
+          "default": true,
+          "description": "自動執行終端指令"
+        },
+        "antigravity-plus.autoApprove.denyList": {
+          "type": "array",
+          "default": [
+            "rm -rf /",
+            "rm -rf ~",
+            "rm -rf /*",
+            "format c:",
+            "format d:",
+            "del /f /s /q c:\\*",
+            "dd if=/dev/zero",
+            "mkfs",
+            ":(){:|:&};:",
+            "chmod -R 777 /",
+            "shutdown",
+            "reboot"
+          ],
+          "description": "禁止自動執行的危險指令黑名單"
+        },
+        "antigravity-plus.autoApprove.allowList": {
+          "type": "array",
+          "default": [],
+          "description": "永遠允許自動執行的指令白名單"
+        },
+        "antigravity-plus.quotaMonitor.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "啟用配額監控"
+        },
+        "antigravity-plus.quotaMonitor.pollingInterval": {
+          "type": "number",
+          "default": 60,
+          "minimum": 10,
+          "maximum": 600,
+          "description": "配額輪詢間隔（秒）"
+        },
+        "antigravity-plus.quotaMonitor.warningThreshold": {
+          "type": "number",
+          "default": 50,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "配額警告閾值（百分比）"
+        },
+        "antigravity-plus.quotaMonitor.criticalThreshold": {
+          "type": "number",
+          "default": 30,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "配額臨界閾值（百分比）"
+        },
+        "antigravity-plus.quotaMonitor.displayStyle": {
+          "type": "string",
+          "default": "percentage",
+          "enum": [
+            "progressBar",
+            "percentage",
+            "dots"
+          ],
+          "enumDescriptions": [
+            "進度條樣式 (████░░░░)",
+            "百分比樣式 (80%)",
+            "圓點樣式 (●●●○○)"
+          ],
+          "description": "狀態列顯示樣式"
+        },
+        "antigravity-plus.quotaMonitor.showGeminiPro": {
+          "type": "boolean",
+          "default": true,
+          "description": "顯示 Gemini Pro 配額"
+        },
+        "antigravity-plus.quotaMonitor.showGeminiFlash": {
+          "type": "boolean",
+          "default": true,
+          "description": "顯示 Gemini Flash 配額"
+        },
+        "antigravity-plus.quotaMonitor.showCostEstimate": {
+          "type": "boolean",
+          "default": true,
+          "description": "顯示成本估算"
+        },
+        "antigravity-plus.ui.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "en",
+            "zh-tw",
+            "zh-cn",
+            "ja",
+            "ko",
+            "es",
+            "fr",
+            "de"
+          ],
+          "enumDescriptions": [
+            "自動偵測 (Auto)",
+            "English",
+            "繁體中文",
+            "简体中文",
+            "日本語",
+            "한국어",
+            "Español",
+            "Français",
+            "Deutsch"
+          ],
+          "description": "介面語言"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "npm run compile && vscode-test",
+    "test:unit": "npm run compile && node run-unit-tests.js",
+    "test:smoke": "npm run compile && node out/test/smoke/runTest.js",
+    "test:e2e": "npm run compile && node out/test/e2e/runTest.js",
+    "test:integration": "npm run compile && node out/test/integration/runTest.js",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:smoke && npm run test:e2e",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.0.0",
+    "@types/uuid": "^9.0.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/test-cli": "^0.0.4",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^2.32.0",
+    "eslint": "^8.55.0",
+    "glob": "^13.0.0",
+    "mocha": "^11.7.5",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0",
+    "ws": "^8.18.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/antigravity-plus"
+  },
+  "license": "MIT",
+  "icon": "resources/icons/icon.png"
+}

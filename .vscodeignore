@@ -1,0 +1,10 @@
+.vscode/
+src/
+node_modules/
+*.vsix
+.DS_Store
+Thumbs.db
+.gitignore
+tsconfig.json
+.vscode-test.mjs
+run-unit-tests.js
