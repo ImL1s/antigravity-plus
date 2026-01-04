@@ -21,7 +21,14 @@ interface AutoApproveConfig {
 export class CDPManager implements vscode.Disposable {
     private isConnectorActive: boolean = false;
     private connectedSocket: WebSocket | null = null;
-    private portRange = [9000, 9003];
+    /**
+     * CDP 端口範圍 (對齊 VS Code 標準和競品)
+     * 
+     * VS Code 使用 --remote-debugging-port=9222 啟動
+     * 競品 (Yoke AntiGravity) 也掃描這個範圍
+     */
+    private readonly PORT_RANGE_START = 9222;
+    private readonly PORT_RANGE_END = 9229;
     private msgId = 1;
 
     // Allow injection of WebSocket constructor for testing
@@ -60,7 +67,7 @@ export class CDPManager implements vscode.Disposable {
     }
 
     private async findAvailableCDPPort(): Promise<number | null> {
-        for (let port = this.portRange[0]; port <= this.portRange[1]; port++) {
+        for (let port = this.PORT_RANGE_START; port <= this.PORT_RANGE_END; port++) {
             if (await this.checkPort(port)) {
                 return port;
             }

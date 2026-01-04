@@ -2,7 +2,7 @@
   "name": "antigravity-plus",
   "displayName": "Antigravity Plus",
   "description": "Auto-approve AI Agent requests + Quota monitoring — The ultimate productivity tool for Google Antigravity",
-  "version": "0.0.15",
+  "version": "0.0.19",
   "publisher": "ImL1s",
   "engines": {
     "vscode": "^1.85.0"
@@ -59,6 +59,16 @@
       {
         "command": "antigravity-plus.toggleAutoWakeup",
         "title": "Toggle Auto Wake-up (Background)",
+        "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.changeStatusBarFormat",
+        "title": "Change Status Bar Format",
+        "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.toggleGrouping",
+        "title": "Toggle Quota Grouping",
         "category": "Antigravity Plus"
       }
     ],
@@ -191,6 +201,66 @@
             "Deutsch"
           ],
           "description": "介面語言"
+        },
+        "antigravity-plus.quota.statusBarFormat": {
+          "type": "string",
+          "default": "icon-percent",
+          "enum": [
+            "icon-only",
+            "color-icon",
+            "percent-only",
+            "icon-percent",
+            "name-percent",
+            "full"
+          ],
+          "enumDescriptions": [
+            "🚀 僅圖示",
+            "🟢 顏色圖示",
+            "95% 僅百分比",
+            "🟢 95% 圖示 + 百分比",
+            "Sonnet: 95% 模型名 + 百分比",
+            "🟢 Sonnet: 95% 完整格式"
+          ],
+          "description": "狀態列顯示格式 (對齊 Antigravity Cockpit)"
+        },
+        "antigravity-plus.quota.pinnedModels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "置頂到狀態列的模型"
+        },
+        "antigravity-plus.quota.pinnedGroups": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "置頂的分組"
+        },
+        "antigravity-plus.quota.groupingEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "啟用配額池分組"
+        },
+        "antigravity-plus.quota.displayMode": {
+          "type": "string",
+          "default": "webview",
+          "enum": [
+            "webview",
+            "quickpick"
+          ],
+          "enumDescriptions": [
+            "Webview Dashboard (推薦)",
+            "QuickPick (備用模式)"
+          ],
+          "description": "配額顯示模式"
+        },
+        "antigravity-plus.quota.showLowest": {
+          "type": "boolean",
+          "default": true,
+          "description": "未置頂時自動顯示最低配額的模型"
         }
       }
     }
@@ -211,9 +281,12 @@
     "publish": "vsce publish"
   },
   "devDependencies": {
+    "@types/chai": "^5.2.3",
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
+    "@types/proxyquire": "^1.3.31",
+    "@types/sinon": "^21.0.0",
     "@types/uuid": "^9.0.0",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.18.1",
@@ -222,9 +295,12 @@
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^2.32.0",
+    "chai": "^6.2.2",
     "eslint": "^8.55.0",
     "glob": "^13.0.0",
     "mocha": "^11.7.5",
+    "proxyquire": "^2.1.3",
+    "sinon": "^21.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },

@@ -15,6 +15,7 @@ import { Logger } from '../../utils/logger';
 import { ConfigManager } from '../../utils/config';
 import { StatusBarManager } from '../../ui/status-bar';
 import { AntigravityUsageProvider } from '../../providers/antigravity-usage';
+import { GroupingManager } from './grouping';
 
 /**
  * 模型配額資訊介面 (對標 Cockpit ModelQuotaInfo)
@@ -80,8 +81,13 @@ export class QuotaMonitorController implements vscode.Disposable {
     private pollingInterval: number = 60;
     private pollingTimer: NodeJS.Timeout | undefined;
     private usageProvider: AntigravityUsageProvider;
+    private groupingManager: GroupingManager;
     private currentSession: UsageSession;
     private quotaData: QuotaData | undefined;
+
+    private _onDidUpdateQuota = new vscode.EventEmitter<QuotaData>();
+    public readonly onDidUpdateQuota = this._onDidUpdateQuota.event;
+
     private disposables: vscode.Disposable[] = [];
 
     constructor(
@@ -94,11 +100,42 @@ export class QuotaMonitorController implements vscode.Disposable {
         this.pollingInterval = configManager.get<number>('quotaMonitor.pollingInterval') ?? 60;
 
         this.usageProvider = new AntigravityUsageProvider(logger);
+        this.groupingManager = new GroupingManager(context);
 
         // 初始化 Session
         this.currentSession = this.createNewSession();
 
+        // 嘗試載入快取 (模仿 Cockpit 秒開體驗)
+        this.loadCachedQuota();
+
         this.logger.info('QuotaMonitorController 初始化完成');
+    }
+
+    /**
+     * 載入快取的配額資料
+     */
+    private loadCachedQuota(): void {
+        const cached = this.context.globalState.get<QuotaData>('antigravity-plus.quotaCache');
+        if (cached) {
+            this.logger.info('已載入配額快取，立即顯示');
+            // 恢復 Date 物件 (JSON 序列化後會變字串)
+            this.restoreDates(cached);
+            this.quotaData = cached;
+            this.statusBarManager.updateQuota(cached);
+            this._onDidUpdateQuota.fire(cached);
+        }
+    }
+
+    /**
+     * 恢復 JSON 反序列化後的 Date 物件
+     */
+    private restoreDates(data: QuotaData): void {
+        if (data.lastUpdated) data.lastUpdated = new Date(data.lastUpdated);
+        if (data.models) {
+            data.models.forEach(m => {
+                if (m.resetTime) m.resetTime = new Date(m.resetTime);
+            });
+        }
     }
 
     /**
@@ -127,29 +164,52 @@ export class QuotaMonitorController implements vscode.Disposable {
         this.logger.info('開始配額監控...');
 
         // 立即執行一次
-        await this.refresh();
+        const success = await this.refresh();
 
-        // 設定定時輪詢
-        this.startPolling();
+        if (success) {
+            // 如果成功，進入正常輪詢
+            this.startPolling(this.pollingInterval * 1000);
+        } else {
+            // 如果失敗，進入熱身模式（快速重試）
+            this.logger.info('首次連接失敗，進入熱身模式 (5s polling)');
+            this.startPolling(5000); // 每 5 秒重試
+        }
     }
 
     /**
      * 開始定時輪詢
      */
-    private startPolling(): void {
+    private startPolling(intervalMs: number): void {
         if (this.pollingTimer) {
             clearInterval(this.pollingTimer);
         }
 
+        let attempts = 0;
+        const WARMUP_LIMIT = 24; // 2 minutes max for warm-up (5s * 24)
+
         this.pollingTimer = setInterval(async () => {
-            await this.refresh();
-        }, this.pollingInterval * 1000);
+            const success = await this.refresh();
+
+            // 如果在熱身模式下成功了，切換回正常頻率
+            if (intervalMs === 5000 && success) {
+                this.logger.info('連接成功，切換回正常輪詢 (60s)');
+                this.startPolling(this.pollingInterval * 1000);
+            }
+            // 如果熱身模式超時仍未成功，也切換回正常頻率
+            else if (intervalMs === 5000 && !success) {
+                attempts++;
+                if (attempts >= WARMUP_LIMIT) {
+                    this.logger.warn('熱身模式超時，切換回正常輪詢 (60s)');
+                    this.startPolling(this.pollingInterval * 1000);
+                }
+            }
+        }, intervalMs);
     }
 
     /**
      * 刷新配額資料
      */
-    public async refresh(): Promise<void> {
+    public async refresh(): Promise<boolean> {
         try {
             this.logger.debug('正在刷新配額...');
 
@@ -157,11 +217,31 @@ export class QuotaMonitorController implements vscode.Disposable {
 
             if (data) {
                 this.quotaData = data;
+                this.quotaData = data;
+
+                // 計算分組
+                const groups = this.groupingManager.createGroups(data.models);
+
                 this.statusBarManager.updateQuota(data);
-                this.logger.debug('配額已更新');
+                this.statusBarManager.updateGroups(groups);
+
+                // 更新快取
+                void this.context.globalState.update('antigravity-plus.quotaCache', data);
+
+                this.logger.debug('配額已更新並快取');
+                return true;
+            } else {
+                // 如果是 undefined，表示獲取失敗
+                if (!this.quotaData) {
+                    // 若從未獲取過數據，顯示 Offline
+                    this.statusBarManager.setOffline();
+                }
+                return false;
             }
         } catch (error) {
             this.logger.error(`刷新配額失敗: ${error}`);
+            this.statusBarManager.setError('Connection Error');
+            return false;
         }
     }
 
@@ -237,7 +317,7 @@ export class QuotaMonitorController implements vscode.Disposable {
         this.pollingInterval = this.configManager.get<number>('quotaMonitor.pollingInterval') ?? 60;
 
         if (this.enabled) {
-            this.startPolling();
+            this.startPolling(this.pollingInterval * 1000);
         } else {
             if (this.pollingTimer) {
                 clearInterval(this.pollingTimer);

@@ -8,14 +8,17 @@ import * as vscode from 'vscode';
 import { ImpactTracker, ImpactStats } from '../core/auto-approve/impact-tracker';
 import { PerformanceModeController } from '../core/auto-approve/performance-mode';
 import { AutoWakeupController, WakeupConfig } from '../core/auto-wakeup/controller';
+import { QuotaData } from '../core/quota-monitor/controller';
+import { calculateCountdown } from '../core/quota-monitor/countdown';
 
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;
-    private static readonly viewType = 'antigravityPlusDashboard';
+    public static readonly viewType = 'antigravityPlusDashboard';
 
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
+    private _quotaData: QuotaData | undefined;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -23,7 +26,8 @@ export class DashboardPanel {
         private impactTracker: ImpactTracker,
         private performanceMode: PerformanceModeController,
         private wakeupController: AutoWakeupController,
-        private isAutoApproveEnabled: boolean
+        private isAutoApproveEnabled: boolean,
+        private version: string
     ) {
         this._panel = panel;
         this._update();
@@ -42,7 +46,8 @@ export class DashboardPanel {
         impactTracker: ImpactTracker,
         performanceMode: PerformanceModeController,
         wakeupController: AutoWakeupController,
-        isAutoApproveEnabled: boolean
+        isAutoApproveEnabled: boolean,
+        version: string
     ): DashboardPanel {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
@@ -70,14 +75,40 @@ export class DashboardPanel {
             impactTracker,
             performanceMode,
             wakeupController,
-            isAutoApproveEnabled
+            isAutoApproveEnabled,
+            version
         );
 
         return DashboardPanel.currentPanel;
     }
 
+    public static revive(
+        panel: vscode.WebviewPanel,
+        extensionUri: vscode.Uri,
+        impactTracker: ImpactTracker,
+        performanceMode: PerformanceModeController,
+        wakeupController: AutoWakeupController,
+        isAutoApproveEnabled: boolean,
+        version: string
+    ): void {
+        DashboardPanel.currentPanel = new DashboardPanel(
+            panel,
+            extensionUri,
+            impactTracker,
+            performanceMode,
+            wakeupController,
+            isAutoApproveEnabled,
+            version
+        );
+    }
+
     public updateAutoApproveState(enabled: boolean): void {
         this.isAutoApproveEnabled = enabled;
+        this._update();
+    }
+
+    public updateQuota(data: QuotaData): void {
+        this._quotaData = data;
         this._update();
     }
 
@@ -111,7 +142,8 @@ export class DashboardPanel {
                 this._update();
                 break;
             case 'refresh':
-                this._update();
+                // FIX: Trigger the actual extension command to fetch new data
+                vscode.commands.executeCommand('antigravity-plus.refreshQuota');
                 break;
         }
     }
@@ -243,12 +275,60 @@ export class DashboardPanel {
             color: #ef4444;
         }
         
-        .stat-label {
-            font-size: 11px;
-            color: #888;
-            text-transform: uppercase;
-            margin-top: 4px;
         }
+        
+        .quota-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .quota-card {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 3px solid #667eea;
+        }
+
+        .quota-card.danger { border-left-color: #ef4444; }
+        .quota-card.warning { border-left-color: #fbbf24; }
+
+        .quota-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .quota-model { font-weight: 600; color: #fff; }
+        .quota-reset { color: #888; font-size: 11px; }
+
+        .progress-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+        }
+
+        .progress-fill.danger { background: #ef4444; }
+        .progress-fill.warning { background: #fbbf24; }
+
+        .quota-details {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #ccc;
+        }
+
+        .highlight { color: #4ade80; }
+
         
         .slider-container {
             margin: 12px 0;
@@ -383,7 +463,7 @@ export class DashboardPanel {
 <body>
     <div class="header">
         <h1>Antigravity Plus</h1>
-        <span class="version">v1.0.0</span>
+        <span class="version">v${this.version}</span>
     </div>
 
     <!-- Auto Accept -->
@@ -417,6 +497,21 @@ export class DashboardPanel {
                 <div class="stat-value ${stats.blocked > 0 ? 'warning' : ''}">${stats.blocked}</div>
                 <div class="stat-label">Blocked</div>
             </div>
+        </div>
+    </div>
+
+    <!-- Quota Monitor (New) -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">📊 Quota Monitor</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="reset-badge" style="cursor:pointer;" onclick="refreshQuota()" title="Refresh Data">🔄 Refresh</span>
+                <span class="reset-badge">${this._quotaData?.lastUpdated ? 'Updated: ' + this._quotaData.lastUpdated.toLocaleTimeString() : ''}</span>
+            </div>
+        </div>
+        
+        <div class="quota-grid">
+            ${this._renderQuotaCards()}
         </div>
     </div>
 
@@ -482,6 +577,13 @@ export class DashboardPanel {
             vscode.postMessage({ command: 'toggleAutoApprove' });
         }
         
+        function refreshQuota() {
+            // Spin icon visual feedback
+            const btn = document.querySelector('.reset-badge');
+            if(btn) btn.innerText = '⏳ refreshing...';
+            vscode.postMessage({ command: 'refresh' });
+        }
+        
         function updatePerformance(value) {
             vscode.postMessage({ command: 'setPerformanceLevel', value: parseInt(value) });
         }
@@ -495,12 +597,43 @@ export class DashboardPanel {
             vscode.postMessage({ command: 'testWakeup' });
         }
         
-        function showHistory() {
             // TODO: 展開歷史列表
         }
     </script>
 </body>
 </html>`;
+    }
+
+    private _renderQuotaCards(): string {
+        if (!this._quotaData || !this._quotaData.models) {
+            return `<div style="text-align:center; color:#888; padding:20px;">
+                <div style="font-size:24px; margin-bottom:8px;">$(sync~spin)</div>
+                Waiting for quota data...
+            </div>`;
+        }
+
+        return this._quotaData.models.map(m => {
+            const remaining = m.remainingPercentage ?? (100 - m.percentage);
+            const statusClass = remaining <= 10 ? 'danger' : (remaining <= 30 ? 'warning' : 'success');
+            const used = m.used ?? m.percentage;
+            const total = m.total ?? 100;
+            const resetText = m.resetTime ? `Resets in ${calculateCountdown(new Date(m.resetTime)).text}` : '';
+
+            return `
+            <div class="quota-card ${statusClass}">
+                <div class="quota-header">
+                    <span class="quota-model">${m.displayName}</span>
+                    <span class="quota-reset">${resetText}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill ${statusClass}" style="width: ${remaining}%"></div>
+                </div>
+                <div class="quota-details">
+                    <span>Remaining: <span class="highlight">${remaining}%</span></span>
+                    <span>Used: ${used}/${total}</span>
+                </div>
+            </div>`;
+        }).join('');
     }
 
     public dispose(): void {
@@ -512,5 +645,29 @@ export class DashboardPanel {
                 disposable.dispose();
             }
         }
+    }
+}
+
+export class DashboardSerializer implements vscode.WebviewPanelSerializer {
+    constructor(
+        private extensionUri: vscode.Uri,
+        private impactTracker: ImpactTracker,
+        private performanceMode: PerformanceModeController,
+        private wakeupController: AutoWakeupController,
+        private getAutoApproveState: () => boolean,
+        private version: string
+    ) { }
+
+    async deserializeWebviewPanel(webviewPanel: vscode.WebviewPanel, _state: any): Promise<void> {
+        // Restore the panel
+        DashboardPanel.revive(
+            webviewPanel,
+            this.extensionUri,
+            this.impactTracker,
+            this.performanceMode,
+            this.wakeupController,
+            this.getAutoApproveState(),
+            this.version
+        );
     }
 }

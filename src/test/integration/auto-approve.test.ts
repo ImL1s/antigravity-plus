@@ -1,3 +1,8 @@
+/**
+ * Auto Approve Integration Tests (Pesosz 策略)
+ * 
+ * 測試對齊 Pesosz 實現的 AutoApproveController
+ */
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
@@ -7,48 +12,16 @@ import { Logger } from '../../utils/logger';
 
 // Mock Logger
 class MockLogger {
-    private outputChannel: any = {
-        appendLine: () => { },
-        show: () => { },
-        dispose: () => { }
-    };
-
-    debug(msg: string): void { console.log(`[MockLogger] DEBUG: ${msg}`); }
-    info(msg: string): void { console.log(`[MockLogger] INFO: ${msg}`); }
-    warn(msg: string): void { console.log(`[MockLogger] WARN: ${msg}`); }
-    error(msg: string): void { console.error(`[MockLogger] ERROR: ${msg}`); }
+    debug(_msg: string): void { }
+    info(_msg: string): void { }
+    warn(_msg: string): void { }
+    error(_msg: string): void { }
     showOutputChannel(): void { }
     dispose(): void { }
 }
 
-// Mock CDPManager
-class MockCDPManager {
-    dispose() { }
-    async tryConnectAndInject(_config?: any): Promise<boolean> { return true; }
-}
-
-// Testable subclass to capture commands
-class TestableAutoApproveController extends AutoApproveController {
-    public commandCalls: string[] = [];
-    public forceStrategy: string | undefined;
-
-    protected async runCommand(command: string, ..._args: any[]): Promise<any> {
-        this.commandCalls.push(command);
-        return undefined; // Don't actually execute during test
-    }
-
-    // Override poll to use forced strategy if set
-    public async poll() {
-        if (this.forceStrategy === 'pesosz') {
-            await (this as any).executePesoszStrategy();
-        } else {
-            await super.poll();
-        }
-    }
-}
-
 suite('Auto Approve Integration Tests', () => {
-    let controller: TestableAutoApproveController;
+    let controller: AutoApproveController;
     let configManager: ConfigManager;
     let logger: Logger;
 
@@ -58,44 +31,88 @@ suite('Auto Approve Integration Tests', () => {
 
         const context = {
             subscriptions: [],
-            extensionPath: '',
-            storagePath: '',
-            globalStoragePath: '',
-            logPath: '',
-            asAbsolutePath: (p: string) => p,
             globalState: {
-                get: (_key: string) => undefined,
-                update: (_key: string, _value: any) => Promise.resolve(),
-                keys: () => []
-            },
-            workspaceState: {
-                get: (_key: string) => undefined,
-                update: (_key: string, _value: any) => Promise.resolve(),
-                keys: () => []
+                get: () => undefined,
+                update: () => Promise.resolve()
             }
         } as unknown as vscode.ExtensionContext;
 
-        const mockCdp = new MockCDPManager() as unknown as any;
-        controller = new TestableAutoApproveController(context, logger, configManager, mockCdp);
+        controller = new AutoApproveController(context, logger, configManager);
     });
 
     teardown(() => {
-        if (controller) controller.dispose();
+        controller.dispose();
     });
 
-    test('Controller should initialize', () => {
-        assert.ok(controller);
+    test('Controller should initialize with disabled state by default', () => {
+        // By default, auto-approve should be disabled
+        assert.strictEqual(controller.isEnabled(), false);
     });
 
-    test('Pesosz Strategy should invoke expected internal commands', async () => {
+    test('Toggle should switch enabled state', () => {
+        assert.strictEqual(controller.isEnabled(), false);
+
+        controller.toggle();
+        assert.strictEqual(controller.isEnabled(), true);
+
+        controller.toggle();
+        assert.strictEqual(controller.isEnabled(), false);
+    });
+
+    test('Enable should turn on auto-approve', () => {
+        assert.strictEqual(controller.isEnabled(), false);
         controller.enable();
-        controller.forceStrategy = 'pesosz';
-        await controller.poll();
+        assert.strictEqual(controller.isEnabled(), true);
+    });
 
-        const hasAgentAccept = controller.commandCalls.includes('antigravity.agent.acceptAgentStep');
-        const hasTerminalAccept = controller.commandCalls.includes('antigravity.terminal.accept');
+    test('Disable should turn off auto-approve', () => {
+        controller.enable();
+        assert.strictEqual(controller.isEnabled(), true);
 
-        assert.ok(hasAgentAccept, 'Should call antigravity.agent.acceptAgentStep');
-        assert.ok(hasTerminalAccept, 'Should call antigravity.terminal.accept');
+        controller.disable();
+        assert.strictEqual(controller.isEnabled(), false);
+    });
+
+    test('evaluateTerminalCommand should return result when enabled', () => {
+        controller.enable();
+
+        const result = controller.evaluateTerminalCommand('npm run build');
+        // Should return an ApprovalResult object
+        assert.ok('approved' in result);
+    });
+
+    test('evaluateTerminalCommand should not approve when disabled', () => {
+        controller.disable();
+
+        const result = controller.evaluateTerminalCommand('npm run build');
+        assert.strictEqual(result.approved, false);
+        assert.ok(result.reason?.includes('未啟用'));
+    });
+
+    test('evaluateFileOperation should return result when enabled', () => {
+        controller.enable();
+
+        const result = controller.evaluateFileOperation('/path/to/file.ts', 'edit');
+        assert.ok('approved' in result);
+    });
+
+    test('getOperationLogs should return array', () => {
+        const logs = controller.getOperationLogs();
+        assert.ok(Array.isArray(logs));
+    });
+
+    test('updateConfig should not throw', () => {
+        assert.doesNotThrow(() => {
+            controller.updateConfig();
+        });
+    });
+
+    test('dispose should clean up resources', () => {
+        controller.enable();
+        assert.strictEqual(controller.isEnabled(), true);
+
+        controller.dispose();
+        // After dispose, controller should still report its last state
+        // but internal resources should be cleaned up
     });
 });

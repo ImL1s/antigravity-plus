@@ -36,8 +36,6 @@ interface ProcessInfo {
 
 export class AntigravityUsageProvider {
     protected connection: AntigravityConnection | undefined;
-    private connectionRetries = 0;
-    private readonly MAX_RETRIES = 3;
     private hasSuccessfulSync = false;  // ✅ 對標 Cockpit: 追蹤是否成功過
 
     constructor(private logger: Logger) { }
@@ -62,21 +60,15 @@ export class AntigravityUsageProvider {
 
             if (response) {
                 this.hasSuccessfulSync = true;  // 標記成功
-                this.connectionRetries = 0;    // 重置重試計數
                 return this.parseQuotaResponse(response);
             }
 
             return undefined;
         } catch (error) {
             this.logger.error(`獲取配額失敗: ${error}`);
-
-            // 重試連接
-            this.connectionRetries++;
-            if (this.connectionRetries < this.MAX_RETRIES) {
-                this.connection = undefined;
-                return this.fetchQuota();
-            }
-
+            // Fail fast: Let the controller handle retries
+            // This prevents "Spinning for ages" issues
+            this.connection = undefined;
             return undefined;
         }
     }
@@ -131,7 +123,6 @@ export class AntigravityUsageProvider {
 
             if (this.connection) {
                 this.logger.info(`連接成功: port=${this.connection.port}`);
-                this.connectionRetries = 0;
             }
         } catch (error) {
             this.logger.error(`檢測連接失敗: ${error}`);
