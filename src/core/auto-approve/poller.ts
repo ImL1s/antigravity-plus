@@ -1,14 +1,12 @@
 /**
- * 200ms 輪詢引擎 (重構版)
+ * 200ms 輪詢引擎
  * 
- * 完全對齊競品 Auto Accept Agent / Yoke AntiGravity
+ * 參考 Auto Accept Agent 的高效輪詢策略
  * 
  * 特點：
  * - 200ms 間隔，平衡效能和反應速度
- * - Pesosz 策略：直接呼叫 VS Code 內部命令
- * - CDP 策略：透過 Chrome DevTools Protocol 注入
  * - 可暫停/恢復
- * - Circuit Breaker 安全機制
+ * - 支援多種偵測目標
  */
 
 import * as vscode from 'vscode';
@@ -39,23 +37,8 @@ export class Poller implements vscode.Disposable {
     private pollInterval: number;
     private isRunning = false;
     private isPaused = false;
-
-    /**
-     * Pesosz 策略命令清單 (完全對齊競品)
-     * 參考：Yoke AntiGravity, Auto Accept Agent
-     */
-    private static readonly PESOSZ_COMMANDS = [
-        // Agent 核准 (核心)
-        'antigravity.agent.acceptAgentStep',
-        // 終端核准
-        'antigravity.terminal.accept',
-        // 聊天輸入核准 (競品有)
-        'antigravity.chat.acceptInput',
-        // 編輯器修改核准 (競品有)
-        'antigravity.editor.acceptEdit',
-        // Inline Suggest (Native 策略備用)
-        'editor.action.inlineSuggest.commit'
-    ];
+    private lastDetectionTime: number = 0;
+    private detectionCount = 0;
 
     // 統計
     private stats = {
@@ -145,15 +128,18 @@ export class Poller implements vscode.Disposable {
         this.stats.totalPolls++;
 
         try {
-            // 主策略：Pesosz - 直接呼叫 VS Code 命令
-            await this.executePesoszStrategy();
+            // 偵測可點擊的按鈕
+            const detections = await this.detectButtons();
 
-            // 輔助策略：CDP - 如果連接了就也執行
-            if (this.cdpClient?.isConnected()) {
-                await this.executeCDPDetection();
+            if (detections.length > 0) {
+                this.stats.successfulDetections++;
+
+                for (const detection of detections) {
+                    await this.handleDetection(detection);
+                }
+
+                this.circuitBreaker.recordSuccess();
             }
-
-            this.circuitBreaker.recordSuccess();
         } catch (error) {
             this.logger.error(`輪詢錯誤: ${error}`);
             this.circuitBreaker.recordFailure();
@@ -161,53 +147,81 @@ export class Poller implements vscode.Disposable {
     }
 
     /**
-     * 執行 Pesosz 策略 (對齊競品)
-     * 直接呼叫 Antigravity 內部命令
+     * 偵測可自動點擊的按鈕
      */
-    private async executePesoszStrategy(): Promise<void> {
-        for (const cmd of Poller.PESOSZ_COMMANDS) {
-            try {
-                await vscode.commands.executeCommand(cmd);
-            } catch {
-                // 命令可能不存在或不適用，靜默忽略
-            }
-        }
-    }
+    private async detectButtons(): Promise<DetectionResult[]> {
+        const results: DetectionResult[] = [];
 
-    /**
-     * 執行 CDP 偵測策略
-     * 透過注入腳本偵測並點擊按鈕
-     */
-    private async executeCDPDetection(): Promise<void> {
-        if (!this.cdpClient) {
-            return;
+        if (!this.cdpClient || !this.cdpClient.isConnected()) {
+            return results;
         }
 
+        // 使用 CDP 注入腳本偵測按鈕
         const script = `
             (function() {
                 const results = [];
+                
+                // Accept 按鈕選擇器
                 const acceptSelectors = [
                     '[data-testid="accept-button"]',
                     '[data-action="accept"]',
-                    'button[class*="accept"]',
+                    'button:contains("Accept")',
+                    'button:contains("接受")',
+                    'button:contains("Approve")',
                     '.accept-btn',
                     '.approve-btn'
                 ];
                 
-                for (const selector of acceptSelectors) {
-                    try {
-                        const elements = document.querySelectorAll(selector);
-                        elements.forEach(el => {
-                            if (el.offsetParent !== null) {
-                                results.push({
-                                    type: 'accept',
-                                    selector: selector,
-                                    text: el.textContent?.trim() || ''
-                                });
-                            }
-                        });
-                    } catch (e) { }
+                // Run 按鈕選擇器
+                const runSelectors = [
+                    '[data-testid="run-button"]',
+                    '[data-action="run"]',
+                    'button:contains("Run")',
+                    'button:contains("執行")',
+                    '.run-btn'
+                ];
+                
+                // Confirm 按鈕選擇器
+                const confirmSelectors = [
+                    '[data-testid="confirm-button"]',
+                    '[data-action="confirm"]',
+                    'button:contains("Confirm")',
+                    'button:contains("確認")',
+                    '.confirm-btn'
+                ];
+                
+                // Apply 按鈕選擇器
+                const applySelectors = [
+                    '[data-testid="apply-button"]',
+                    '[data-action="apply"]',
+                    'button:contains("Apply")',
+                    'button:contains("套用")',
+                    '.apply-btn'
+                ];
+                
+                function findButtons(selectors, type) {
+                    for (const selector of selectors) {
+                        try {
+                            const elements = document.querySelectorAll(selector);
+                            elements.forEach(el => {
+                                if (el.offsetParent !== null) { // 可見
+                                    results.push({
+                                        type: type,
+                                        selector: selector,
+                                        text: el.textContent?.trim() || ''
+                                    });
+                                }
+                            });
+                        } catch (e) {
+                            // 選擇器可能無效，忽略
+                        }
+                    }
                 }
+                
+                findButtons(acceptSelectors, 'accept');
+                findButtons(runSelectors, 'run');
+                findButtons(confirmSelectors, 'confirm');
+                findButtons(applySelectors, 'apply');
                 
                 return results;
             })()
@@ -215,14 +229,14 @@ export class Poller implements vscode.Disposable {
 
         try {
             const response = await this.cdpClient.injectScript(script);
-            if (response?.value && Array.isArray(response.value)) {
-                for (const detection of response.value as DetectionResult[]) {
-                    await this.handleDetection(detection);
-                }
+            if (response && response.value) {
+                return response.value as DetectionResult[];
             }
         } catch (error) {
-            this.logger.debug(`CDP 偵測失敗: ${error}`);
+            this.logger.debug(`按鈕偵測失敗: ${error}`);
         }
+
+        return results;
     }
 
     /**
@@ -246,9 +260,7 @@ export class Poller implements vscode.Disposable {
 
         if (shouldApprove) {
             // 自動點擊
-            if (detection.selector && this.cdpClient) {
-                await this.cdpClient.click(detection.selector);
-            }
+            await this.clickButton(detection);
             this.stats.autoApproved++;
 
             this.operationLogger.log({
@@ -272,6 +284,19 @@ export class Poller implements vscode.Disposable {
             vscode.window.showWarningMessage(
                 t('notifications.blocked.message', detection.text || detection.type)
             );
+        }
+    }
+
+    /**
+     * 點擊按鈕
+     */
+    private async clickButton(detection: DetectionResult): Promise<void> {
+        if (!this.cdpClient || !this.cdpClient.isConnected()) {
+            return;
+        }
+
+        if (detection.selector) {
+            await this.cdpClient.click(detection.selector);
         }
     }
 

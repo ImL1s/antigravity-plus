@@ -40,13 +40,6 @@ export class ProcessDetector {
         this.logger.debug(`開始偵測 Antigravity 進程 (${platform})`);
 
         try {
-            // 優先嘗試常見端口 (Fast check)
-            // 這可以避免昂貴的 wmic/ps 指令，解決 Windows 上的卡頓問題
-            const common = await this.tryCommonPorts();
-            if (common) {
-                return common;
-            }
-
             switch (platform) {
                 case 'win32':
                     return await this.detectWindows();
@@ -115,7 +108,7 @@ export class ProcessDetector {
             this.logger.debug(`Windows wmic 偵測失敗: ${error}`);
         }
 
-        return null;
+        return this.tryCommonPorts();
     }
 
     /**
@@ -139,7 +132,7 @@ export class ProcessDetector {
                 this.logger.debug(`[Mac] Line parts: ${JSON.stringify(parts)}`); // DEBUG
                 const pid = parseInt(parts[1]);
                 this.logger.debug(`[Mac] Parsed PID: ${pid}`); // DEBUG
-
+                const cmdLine = parts.slice(10).join(' '); // 假設 Command 從第 11 欄開始
 
                 const portMatch = line.match(/--remote-debugging-port=(\d+)/);
                 if (portMatch) {
@@ -152,7 +145,7 @@ export class ProcessDetector {
             this.logger.debug(`macOS 偵測失敗: ${error}`);
         }
 
-        return null;
+        return this.tryCommonPorts();
     }
 
     /**
@@ -182,7 +175,7 @@ export class ProcessDetector {
             this.logger.debug(`Linux 偵測失敗: ${error}`);
         }
 
-        return null;
+        return this.tryCommonPorts();
     }
 
     /**
@@ -215,7 +208,7 @@ export class ProcessDetector {
                 timeout: 2000
             };
 
-            const req = this.httpClient.request(options, (res: any) => {
+            const req = http.request(options, (res: any) => {
                 let data = '';
                 res.on('data', (chunk: string) => data += chunk);
                 res.on('end', () => {

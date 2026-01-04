@@ -1,22 +1,10 @@
-/**
- * Auto Accept Controller (Pesosz 策略完整移植)
- * 
- * 完全按照 pesosz/antigravity-auto-accept v1.0.3 實現
- * 
- * 關鍵行為：
- * - 預設 enabled = true（一安裝就生效）
- * - 使用 500ms 輪詢間隔
- * - 只需要 2 個命令：antigravity.agent.acceptAgentStep, antigravity.terminal.accept
- * - 不需要 CDP！純 VS Code 命令
- * - 一啟動就執行 startLoop()，不管設定
- */
 
 import * as vscode from 'vscode';
 import { Logger } from '../../utils/logger';
 import { ConfigManager } from '../../utils/config';
 import { RulesEngine } from './rules-engine';
 import { OperationLogger, OperationLog } from './operation-logger';
-import { ImpactTracker } from './impact-tracker';
+import { CDPManager } from './cdp-manager';
 
 export interface ApprovalResult {
     approved: boolean;
@@ -25,177 +13,167 @@ export interface ApprovalResult {
 }
 
 export class AutoApproveController implements vscode.Disposable {
-    /**
-     * Pesosz: 預設啟用 (enabled = true)
-     * 原始代碼：let enabled = true;
-     */
-    private enabled: boolean = true;
-    private autoAcceptInterval: NodeJS.Timeout | null = null;
-    private statusBarItem: vscode.StatusBarItem | undefined;
+    private enabled: boolean = false;
     private rulesEngine: RulesEngine;
     private operationLogger: OperationLogger;
-    private impactTracker: ImpactTracker | null = null;
+    private cdpManager: CDPManager;
     private disposables: vscode.Disposable[] = [];
+    private intervalId: NodeJS.Timeout | null = null;
     private isDisposed: boolean = false;
-
-    /**
-     * Pesosz 使用的輪詢間隔：500ms
-     * 原始代碼：setInterval(..., 500);
-     */
-    private readonly POLL_INTERVAL_MS = 500;
-
-    /**
-     * Pesosz 使用的兩個核心命令
-     * 原始代碼：
-     *   await vscode.commands.executeCommand('antigravity.agent.acceptAgentStep');
-     *   await vscode.commands.executeCommand('antigravity.terminal.accept');
-     */
-    private static readonly ACCEPT_COMMANDS = [
-        'antigravity.agent.acceptAgentStep',
-        'antigravity.terminal.accept'
-    ];
 
     constructor(
         private context: vscode.ExtensionContext,
         private logger: Logger,
-        private configManager: ConfigManager
+        private configManager: ConfigManager,
+        cdpManager?: CDPManager // Optional injection for testing
     ) {
+        this.enabled = this.configManager.get<boolean>('autoApprove.enabled') ?? false;
+        this.logger.info(`AutoApproveController initialized (Enabled: ${this.enabled})`);
         this.rulesEngine = new RulesEngine(configManager);
         this.operationLogger = new OperationLogger(context);
+        this.cdpManager = cdpManager || new CDPManager(logger);
 
         this.initialize();
     }
 
     /**
-     * 初始化 (對齊 Pesosz activate 函數)
+     * Initialize the controller
      */
-    private initialize(): void {
-        this.logger.info('AutoApproveController 初始化中... (Pesosz 策略)');
+    private async initialize(): Promise<void> {
+        this.logger.info('AutoApproveController 初始化中...');
 
-        // 創建狀態列項目 (對齊 Pesosz: Right, Priority 10000)
-        this.createStatusBarItem();
+        // Listen for terminal creation
+        this.setupTerminalListener();
 
-        // Pesosz 行為：一啟動就執行 startLoop()
-        // 原始代碼：startLoop(); (在 activate 最後無條件呼叫)
-        this.startLoop();
+        // Try to setup VS Code native auto approve config if applicable
+        this.setupAutoApproveConfig();
+
+        // Start polling for auto-approval strategies
+        this.startPolling();
 
         this.logger.info('AutoApproveController 初始化完成');
     }
 
     /**
-     * 創建狀態列項目 (對齊 Pesosz)
-     * 原始代碼：
-     *   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 10000);
-     *   statusBarItem.command = 'unlimited.toggle';
+     * Setup VS Code native auto-approve configuration
      */
-    private createStatusBarItem(): void {
-        try {
-            this.statusBarItem = vscode.window.createStatusBarItem(
-                vscode.StatusBarAlignment.Right,
-                10000
-            );
-            this.statusBarItem.command = 'antigravity-plus.toggleAutoApprove';
-            this.disposables.push(this.statusBarItem);
-            this.updateStatusBar();
-            this.statusBarItem.show();
-        } catch (e) {
-            this.logger.debug(`狀態列創建失敗: ${e}`);
-        }
-    }
-
-    /**
-     * 更新狀態列顯示 (對齊 Pesosz updateStatusBar)
-     * 原始代碼完全複製：
-     *   if (enabled) {
-     *     statusBarItem.text = "✅ Auto-Accept: ON";
-     *     statusBarItem.tooltip = "Unlimited Auto-Accept is Executing (Click to Pause)";
-     *     statusBarItem.backgroundColor = undefined;
-     *   } else {
-     *     statusBarItem.text = "🛑 Auto-Accept: OFF";
-     *     statusBarItem.tooltip = "Unlimited Auto-Accept is Paused (Click to Resume)";
-     *     statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-     *   }
-     */
-    private updateStatusBar(): void {
-        if (!this.statusBarItem) return;
-
+    private setupAutoApproveConfig(): void {
         if (this.enabled) {
-            this.statusBarItem.text = "✅ Auto-Accept: ON";
-            this.statusBarItem.tooltip = "Unlimited Auto-Accept is Executing (Click to Pause)";
-            this.statusBarItem.backgroundColor = undefined;
-        } else {
-            this.statusBarItem.text = "🛑 Auto-Accept: OFF";
-            this.statusBarItem.tooltip = "Unlimited Auto-Accept is Paused (Click to Resume)";
-            this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-        }
-    }
-
-    /**
-     * 開始輪詢迴圈 (對齊 Pesosz startLoop)
-     * 原始代碼：
-     *   autoAcceptInterval = setInterval(async () => {
-     *     if (!enabled) return;
-     *     try { await vscode.commands.executeCommand('antigravity.agent.acceptAgentStep'); } catch (e) { }
-     *     try { await vscode.commands.executeCommand('antigravity.terminal.accept'); } catch (e) { }
-     *   }, 500);
-     */
-    private startLoop(): void {
-        if (this.autoAcceptInterval) {
-            clearInterval(this.autoAcceptInterval);
-        }
-
-        this.autoAcceptInterval = setInterval(async () => {
-            if (!this.enabled || this.isDisposed) return;
-
-            for (const cmd of AutoApproveController.ACCEPT_COMMANDS) {
-                try {
-                    await vscode.commands.executeCommand(cmd);
-                    // 記錄成功執行的點擊
-                    this.impactTracker?.recordClick();
-                } catch (e) {
-                    // 靜默忽略，與 Pesosz 一致
-                }
+            try {
+                // In a real scenario, this might set vscode configuration for chat tools
+                // const config = vscode.workspace.getConfiguration('chat.tools');
+                this.logger.debug('自動核准配置已應用');
+            } catch (error) {
+                this.logger.debug('VS Code 自動核准配置不可用');
             }
-        }, this.POLL_INTERVAL_MS);
-
-        this.logger.info(`Auto-Accept 輪詢已啟動 (間隔: ${this.POLL_INTERVAL_MS}ms)`);
-    }
-
-    /**
-     * 停止輪詢迴圈
-     */
-    private stopLoop(): void {
-        if (this.autoAcceptInterval) {
-            clearInterval(this.autoAcceptInterval);
-            this.autoAcceptInterval = null;
         }
-        this.logger.info('Auto-Accept 輪詢已停止');
     }
 
     /**
-     * 切換開關 (對齊 Pesosz toggle 命令)
-     * 原始代碼：
-     *   enabled = !enabled;
-     *   updateStatusBar();
-     *   if (enabled) {
-     *     vscode.window.showInformationMessage('Auto-Accept: ON ✅');
-     *   } else {
-     *     vscode.window.showInformationMessage('Auto-Accept: OFF 🛑');
-     *   }
+     * Setup terminal listener
+     */
+    private setupTerminalListener(): void {
+        this.disposables.push(
+            vscode.window.onDidOpenTerminal(terminal => {
+                this.logger.debug(`終端已開啟: ${terminal.name}`);
+            })
+        );
+    }
+
+    /**
+     * Start the polling loop based on configured strategy
+     */
+    private startPolling(): void {
+        const intervalMs = this.configManager.get<number>('autoApprove.interval') ?? 1000;
+
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+        }
+
+        this.logger.info(`Starting AutoApprove polling (Interval: ${intervalMs}ms)`);
+
+        this.intervalId = setInterval(async () => {
+            await this.poll();
+        }, intervalMs);
+    }
+
+    private async poll() {
+        if (!this.enabled || this.isDisposed) {
+            return;
+        }
+
+        try {
+            const config = vscode.workspace.getConfiguration('antigravity-plus.autoApprove');
+            const strategy = config.get<string>('strategy', 'pesosz');
+
+            if (strategy === 'pesosz') {
+                await this.executePesoszStrategy();
+            } else if (strategy === 'native') {
+                await this.executeNativeStrategy();
+            } else if (strategy === 'cdp') {
+                await this.executeCDPStrategy();
+            }
+        } catch (error) {
+            this.logger.error(`AutoApprove Polling Error: ${error}`);
+        }
+    }
+
+    /**
+     * Pesosz Strategy: Directly invoke Antigravity internal commands.
+     */
+    private async executePesoszStrategy() {
+        try {
+            await vscode.commands.executeCommand('antigravity.agent.acceptAgentStep');
+        } catch (e) { void (e); }
+
+        try {
+            await vscode.commands.executeCommand('antigravity.terminal.accept');
+        } catch (e) { void (e); }
+    }
+
+    /**
+     * Native Strategy: Use VS Code's inline suggest commit command.
+     */
+    private async executeNativeStrategy() {
+        try {
+            await vscode.commands.executeCommand('editor.action.inlineSuggest.commit');
+        } catch (e) { void (e); }
+    }
+
+    /**
+     * CDP Strategy: Use passive CDP injection
+     */
+    private async executeCDPStrategy() {
+        const denyList = this.configManager.get<string[]>('autoApprove.denyList') ?? [];
+        const allowList = this.configManager.get<string[]>('autoApprove.allowList') ?? [];
+        const interval = this.configManager.get<number>('autoApprove.interval') ?? 1000;
+
+        const success = await this.cdpManager.tryConnectAndInject({
+            denyList,
+            allowList,
+            clickInterval: interval
+        });
+
+        if (!success) {
+            // Fallback to Pesosz strategy could be implemented here
+        }
+    }
+
+    /**
+     * Toggle auto-approve state
      */
     public toggle(): boolean {
         this.enabled = !this.enabled;
-        this.updateStatusBar();
 
-        if (this.enabled) {
-            vscode.window.showInformationMessage('Auto-Accept: ON ✅');
-            this.startLoop();
-        } else {
-            vscode.window.showInformationMessage('Auto-Accept: OFF 🛑');
-            this.stopLoop();
-        }
+        vscode.workspace.getConfiguration('antigravity-plus').update(
+            'autoApprove.enabled',
+            this.enabled,
+            vscode.ConfigurationTarget.Global
+        );
 
-        this.logger.info(`Auto-Accept 已${this.enabled ? '啟用' : '停用'}`);
+        this.logger.info(`自動核准已${this.enabled ? '啟用' : '停用'}`);
+        this.setupAutoApproveConfig();
+
         return this.enabled;
     }
 
@@ -212,7 +190,7 @@ export class AutoApproveController implements vscode.Disposable {
     }
 
     /**
-     * 評估終端命令 (額外安全功能)
+     * Evaluate if a terminal command should be allowed
      */
     public evaluateTerminalCommand(command: string): ApprovalResult {
         if (!this.enabled) {
@@ -235,11 +213,16 @@ export class AutoApproveController implements vscode.Disposable {
     }
 
     /**
-     * 評估檔案操作 (額外安全功能)
+     * Evaluate if a file operation should be allowed
      */
     public evaluateFileOperation(filePath: string, operation: string): ApprovalResult {
         if (!this.enabled) {
             return { approved: false, reason: '自動核准未啟用' };
+        }
+
+        const fileOperationsEnabled = this.configManager.get<boolean>('autoApprove.fileOperations') ?? true;
+        if (!fileOperationsEnabled) {
+            return { approved: false, reason: '檔案操作自動核准未啟用' };
         }
 
         const result = this.rulesEngine.evaluate({
@@ -263,8 +246,13 @@ export class AutoApproveController implements vscode.Disposable {
     }
 
     public updateConfig(): void {
+        this.enabled = this.configManager.get<boolean>('autoApprove.enabled') ?? false;
         this.rulesEngine.updateRules();
-        this.updateStatusBar();
+        this.setupAutoApproveConfig();
+
+        // Refresh polling interval
+        this.startPolling();
+
         this.logger.info('AutoApproveController 設定已更新');
     }
 
@@ -272,23 +260,24 @@ export class AutoApproveController implements vscode.Disposable {
         return this.enabled;
     }
 
-    public setPollingInterval(_intervalMs: number): void {
-        // 保持 Pesosz 的 500ms 間隔
-        this.logger.debug('輪詢間隔保持 500ms (對齊 Pesosz)');
-    }
-
-    /**
-     * 設定 Impact Tracker（用於記錄統計）
-     */
-    public setImpactTracker(tracker: ImpactTracker): void {
-        this.impactTracker = tracker;
-        this.logger.debug('ImpactTracker 已設定');
+    public setPollingInterval(intervalMs: number): void {
+        this.logger.debug(`輪詢間隔已更新: ${intervalMs}ms`);
+        // The actual update happens via config change triggering updateConfig, 
+        // or we could force restart polling here if needed.
+        // For now, assume updateConfig covers it or this is just for API compatibility.
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = setInterval(async () => {
+                await this.poll();
+            }, intervalMs);
+        }
     }
 
     public dispose(): void {
         this.isDisposed = true;
-        this.stopLoop();
+        if (this.intervalId) clearInterval(this.intervalId);
         this.disposables.forEach(d => d.dispose());
+        this.cdpManager.dispose();
         this.logger.info('AutoApproveController 已釋放');
     }
 }

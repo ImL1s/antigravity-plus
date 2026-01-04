@@ -35,7 +35,7 @@ function loadJson(filename: string): Record<string, string> {
 }
 
 // 語言檔案列表
-const languageCodes = ['en', 'zh-tw', 'zh-cn', 'ja', 'ko', 'es', 'fr', 'de'];
+const languageCodes = ['en', 'zh-tw', 'zh-cn', 'ja', 'ko', 'es', 'fr', 'de', 'it', 'pt-br'];
 
 describe('i18n Unit Tests', () => {
     let languages: Array<{ code: string; data: Record<string, string> }> = [];

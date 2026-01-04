@@ -13,8 +13,10 @@ import * as ko from './ko.json';
 import * as es from './es.json';
 import * as fr from './fr.json';
 import * as de from './de.json';
+import * as it from './it.json';
+import * as ptBr from './pt-br.json';
 
-export type SupportedLocale = 'en' | 'zh-tw' | 'zh-cn' | 'ja' | 'ko' | 'es' | 'fr' | 'de';
+export type SupportedLocale = 'en' | 'zh-tw' | 'zh-cn' | 'ja' | 'ko' | 'es' | 'fr' | 'de' | 'it' | 'pt-br';
 
 const locales: Record<SupportedLocale, Record<string, string>> = {
     'en': en,
@@ -24,7 +26,9 @@ const locales: Record<SupportedLocale, Record<string, string>> = {
     'ko': ko,
     'es': es,
     'fr': fr,
-    'de': de
+    'de': de,
+    'it': it,
+    'pt-br': ptBr
 };
 
 let currentLocale: SupportedLocale = 'en';
@@ -88,7 +92,13 @@ function detectLocale(vscodeLocale: string): SupportedLocale {
         'de': 'de',
         'de-de': 'de',
         'de-at': 'de',
-        'de-ch': 'de'
+        'de-ch': 'de',
+        'it': 'it',
+        'it-it': 'it',
+        'it-ch': 'it',
+        'pt': 'pt-br',
+        'pt-br': 'pt-br',
+        'pt-pt': 'pt-br'
     };
 
     // 嘗試完整代碼
@@ -149,7 +159,9 @@ export function getLocaleDisplayName(locale: SupportedLocale): string {
         'ko': '한국어',
         'es': 'Español',
         'fr': 'Français',
-        'de': 'Deutsch'
+        'de': 'Deutsch',
+        'it': 'Italiano',
+        'pt-br': 'Português (Brasil)'
     };
     return names[locale];
 }

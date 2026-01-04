@@ -1,8 +1,8 @@
 {
   "name": "antigravity-plus",
-  "displayName": "Antigravity Plus",
-  "description": "Auto-approve AI Agent requests + Quota monitoring — The ultimate productivity tool for Google Antigravity",
-  "version": "0.0.19",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "0.0.14",
   "publisher": "ImL1s",
   "engines": {
     "vscode": "^1.85.0"
@@ -21,69 +21,59 @@
     "gemini"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "*"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "antigravity-plus.openDashboard",
-        "title": "Open Dashboard",
+        "title": "%command.openDashboard%",
         "category": "Antigravity Plus"
       },
       {
         "command": "antigravity-plus.toggleAutoApprove",
-        "title": "Toggle Auto Approve",
+        "title": "%command.toggleAutoApprove%",
         "category": "Antigravity Plus"
       },
       {
         "command": "antigravity-plus.refreshQuota",
-        "title": "Refresh Quota",
+        "title": "%command.refreshQuota%",
         "category": "Antigravity Plus"
       },
       {
         "command": "antigravity-plus.resetSession",
-        "title": "Reset Session",
+        "title": "%command.resetSession%",
         "category": "Antigravity Plus"
       },
       {
         "command": "antigravity-plus.showLogs",
-        "title": "Show Operation Logs",
+        "title": "%command.showLogs%",
         "category": "Antigravity Plus"
       },
       {
         "command": "antigravity-plus.showQuickPick",
-        "title": "Show Quota Quick Pick",
+        "title": "%command.showQuickPick%",
         "category": "Antigravity Plus"
       },
       {
         "command": "antigravity-plus.toggleAutoWakeup",
-        "title": "Toggle Auto Wake-up (Background)",
-        "category": "Antigravity Plus"
-      },
-      {
-        "command": "antigravity-plus.changeStatusBarFormat",
-        "title": "Change Status Bar Format",
-        "category": "Antigravity Plus"
-      },
-      {
-        "command": "antigravity-plus.toggleGrouping",
-        "title": "Toggle Quota Grouping",
+        "title": "%command.toggleAutoWakeup%",
         "category": "Antigravity Plus"
       }
     ],
     "configuration": {
-      "title": "Antigravity Plus",
+      "title": "%config.title%",
       "properties": {
         "antigravity-plus.autoApprove.fileOperations": {
           "type": "boolean",
           "default": true,
-          "description": "自動接受檔案編輯操作"
+          "description": "%config.autoApprove.fileOperations.description%"
         },
         "antigravity-plus.autoApprove.terminalCommands": {
           "type": "boolean",
           "default": true,
-          "description": "自動執行終端指令"
+          "description": "%config.autoApprove.terminalCommands.description%"
         },
         "antigravity-plus.autoApprove.denyList": {
           "type": "array",
@@ -101,49 +91,49 @@
             "shutdown",
             "reboot"
           ],
-          "description": "禁止自動執行的危險指令黑名單"
+          "description": "%config.autoApprove.denyList.description%"
         },
         "antigravity-plus.autoApprove.allowList": {
           "type": "array",
           "default": [],
-          "description": "永遠允許自動執行的指令白名單"
+          "description": "%config.autoApprove.allowList.description%"
         },
         "antigravity-plus.autoApprove.interval": {
           "type": "number",
           "default": 200,
           "minimum": 100,
-          "description": "Auto Approve polling interval (ms) - 200ms for instant response"
+          "description": "%config.autoApprove.interval.description%"
         },
         "antigravity-plus.autoApprove.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable Auto Approve AI Agent requests"
+          "description": "%config.autoApprove.enabled.description%"
         },
         "antigravity-plus.quotaMonitor.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "啟用配額監控"
+          "description": "%config.quotaMonitor.enabled.description%"
         },
         "antigravity-plus.quotaMonitor.pollingInterval": {
           "type": "number",
           "default": 60,
           "minimum": 10,
           "maximum": 600,
-          "description": "配額輪詢間隔（秒）"
+          "description": "%config.quotaMonitor.pollingInterval.description%"
         },
         "antigravity-plus.quotaMonitor.warningThreshold": {
           "type": "number",
           "default": 50,
           "minimum": 0,
           "maximum": 100,
-          "description": "配額警告閾值（百分比）"
+          "description": "%config.quotaMonitor.warningThreshold.description%"
         },
         "antigravity-plus.quotaMonitor.criticalThreshold": {
           "type": "number",
           "default": 30,
           "minimum": 0,
           "maximum": 100,
-          "description": "配額臨界閾值（百分比）"
+          "description": "%config.quotaMonitor.criticalThreshold.description%"
         },
         "antigravity-plus.quotaMonitor.displayStyle": {
           "type": "string",
@@ -154,26 +144,26 @@
             "dots"
           ],
           "enumDescriptions": [
-            "進度條樣式 (████░░░░)",
-            "百分比樣式 (80%)",
-            "圓點樣式 (●●●○○)"
+            "%config.quotaMonitor.displayStyle.enumDescriptions.progressBar%",
+            "%config.quotaMonitor.displayStyle.enumDescriptions.percentage%",
+            "%config.quotaMonitor.displayStyle.enumDescriptions.dots%"
           ],
-          "description": "狀態列顯示樣式"
+          "description": "%config.quotaMonitor.displayStyle.description%"
         },
         "antigravity-plus.quotaMonitor.showGeminiPro": {
           "type": "boolean",
           "default": true,
-          "description": "顯示 Gemini Pro 配額"
+          "description": "%config.quotaMonitor.showGeminiPro.description%"
         },
         "antigravity-plus.quotaMonitor.showGeminiFlash": {
           "type": "boolean",
           "default": true,
-          "description": "顯示 Gemini Flash 配額"
+          "description": "%config.quotaMonitor.showGeminiFlash.description%"
         },
         "antigravity-plus.quotaMonitor.showCostEstimate": {
           "type": "boolean",
           "default": true,
-          "description": "顯示成本估算"
+          "description": "%config.quotaMonitor.showCostEstimate.description%"
         },
         "antigravity-plus.ui.language": {
           "type": "string",
@@ -187,7 +177,9 @@
             "ko",
             "es",
             "fr",
-            "de"
+            "de",
+            "it",
+            "pt-br"
           ],
           "enumDescriptions": [
             "自動偵測 (Auto)",
@@ -198,69 +190,36 @@
             "한국어",
             "Español",
             "Français",
-            "Deutsch"
+            "Deutsch",
+            "Italiano",
+            "Português (Brasil)"
           ],
-          "description": "介面語言"
+          "description": "%config.ui.language.description%"
         },
-        "antigravity-plus.quota.statusBarFormat": {
-          "type": "string",
-          "default": "icon-percent",
-          "enum": [
-            "icon-only",
-            "color-icon",
-            "percent-only",
-            "icon-percent",
-            "name-percent",
-            "full"
-          ],
-          "enumDescriptions": [
-            "🚀 僅圖示",
-            "🟢 顏色圖示",
-            "95% 僅百分比",
-            "🟢 95% 圖示 + 百分比",
-            "Sonnet: 95% 模型名 + 百分比",
-            "🟢 Sonnet: 95% 完整格式"
-          ],
-          "description": "狀態列顯示格式 (對齊 Antigravity Cockpit)"
-        },
-        "antigravity-plus.quota.pinnedModels": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "description": "置頂到狀態列的模型"
-        },
-        "antigravity-plus.quota.pinnedGroups": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "description": "置頂的分組"
-        },
-        "antigravity-plus.quota.groupingEnabled": {
+        "antigravity-plus.wakeupConfig.enabled": {
           "type": "boolean",
-          "default": true,
-          "description": "啟用配額池分組"
+          "default": false,
+          "description": "Enable Smart Auto Wake-up (自動喚醒)"
         },
-        "antigravity-plus.quota.displayMode": {
+        "antigravity-plus.wakeupConfig.mode": {
           "type": "string",
-          "default": "webview",
           "enum": [
-            "webview",
-            "quickpick"
+            "smart",
+            "fixed",
+            "cron"
           ],
-          "enumDescriptions": [
-            "Webview Dashboard (推薦)",
-            "QuickPick (備用模式)"
-          ],
-          "description": "配額顯示模式"
+          "default": "smart",
+          "description": "Scheduling Mode (排程模式)"
         },
-        "antigravity-plus.quota.showLowest": {
-          "type": "boolean",
-          "default": true,
-          "description": "未置頂時自動顯示最低配額的模型"
+        "antigravity-plus.wakeupConfig.workStartTime": {
+          "type": "string",
+          "default": "09:00",
+          "description": "Work Start Time (工作開始時間, Smart 模式會提早 3 小時喚醒)"
+        },
+        "antigravity-plus.wakeupConfig.notificationWebhook": {
+          "type": "string",
+          "default": "",
+          "description": "Webhook URL for Notifications (Discord/Slack/Teams)"
         }
       }
     }
@@ -281,12 +240,9 @@
     "publish": "vsce publish"
   },
   "devDependencies": {
-    "@types/chai": "^5.2.3",
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
-    "@types/proxyquire": "^1.3.31",
-    "@types/sinon": "^21.0.0",
     "@types/uuid": "^9.0.0",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.18.1",
@@ -295,12 +251,9 @@
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^2.32.0",
-    "chai": "^6.2.2",
     "eslint": "^8.55.0",
     "glob": "^13.0.0",
     "mocha": "^11.7.5",
-    "proxyquire": "^2.1.3",
-    "sinon": "^21.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },

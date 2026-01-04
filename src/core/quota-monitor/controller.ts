@@ -15,28 +15,20 @@ import { Logger } from '../../utils/logger';
 import { ConfigManager } from '../../utils/config';
 import { StatusBarManager } from '../../ui/status-bar';
 import { AntigravityUsageProvider } from '../../providers/antigravity-usage';
-import { GroupingManager } from './grouping';
 
-/**
- * 模型配額資訊介面 (對標 Cockpit ModelQuotaInfo)
- */
 export interface ModelQuota {
-    // 基本欄位
-    name: string;           // modelId
-    displayName: string;    // label
-    used: number;           // 已使用百分比
-    total: number;          // 總量 (固定 100)
-    percentage: number;     // 已使用百分比
+    name: string;
+    displayName: string;
+    used: number;
+    total: number;
+    percentage: number;
     resetTime?: Date;
-
-    // ✅ 新增欄位 (對標 Cockpit)
-    remainingFraction?: number;         // 剩餘比例 (0-1)
-    remainingPercentage?: number;       // 剩餘百分比 (0-100)
-    isExhausted?: boolean;              // 是否已耗盡
-    timeUntilReset?: number;            // 距離重置毫秒數
-    timeUntilResetFormatted?: string;   // 格式化倒計時
-
-    // 能力欄位
+    // 新增欄位 (對標 Cockpit)
+    remainingFraction?: number;
+    remainingPercentage?: number;
+    isExhausted?: boolean;
+    timeUntilReset?: number;
+    timeUntilResetFormatted?: string;
     supportsImages?: boolean;
     isRecommended?: boolean;
     tagTitle?: string;
@@ -51,18 +43,6 @@ export interface UsageSession {
     model: string;
 }
 
-/**
- * 使用者資訊介面
- */
-export interface UserInfo {
-    name: string;
-    email: string;
-    tier: string;
-}
-
-/**
- * 配額快照資料介面 (對標 Cockpit QuotaSnapshot)
- */
 export interface QuotaData {
     models: ModelQuota[];
     accountLevel: string;
@@ -73,7 +53,12 @@ export interface QuotaData {
         remainingPercentage?: number;
     };
     lastUpdated: Date;
-    userInfo?: UserInfo;  // ✅ 新增使用者資訊
+    // ✅ 新增欄位
+    userInfo?: {
+        name: string;
+        email: string;
+        tier: string;
+    };
 }
 
 export class QuotaMonitorController implements vscode.Disposable {
@@ -81,13 +66,8 @@ export class QuotaMonitorController implements vscode.Disposable {
     private pollingInterval: number = 60;
     private pollingTimer: NodeJS.Timeout | undefined;
     private usageProvider: AntigravityUsageProvider;
-    private groupingManager: GroupingManager;
     private currentSession: UsageSession;
     private quotaData: QuotaData | undefined;
-
-    private _onDidUpdateQuota = new vscode.EventEmitter<QuotaData>();
-    public readonly onDidUpdateQuota = this._onDidUpdateQuota.event;
-
     private disposables: vscode.Disposable[] = [];
 
     constructor(
@@ -100,42 +80,11 @@ export class QuotaMonitorController implements vscode.Disposable {
         this.pollingInterval = configManager.get<number>('quotaMonitor.pollingInterval') ?? 60;
 
         this.usageProvider = new AntigravityUsageProvider(logger);
-        this.groupingManager = new GroupingManager(context);
 
         // 初始化 Session
         this.currentSession = this.createNewSession();
 
-        // 嘗試載入快取 (模仿 Cockpit 秒開體驗)
-        this.loadCachedQuota();
-
         this.logger.info('QuotaMonitorController 初始化完成');
-    }
-
-    /**
-     * 載入快取的配額資料
-     */
-    private loadCachedQuota(): void {
-        const cached = this.context.globalState.get<QuotaData>('antigravity-plus.quotaCache');
-        if (cached) {
-            this.logger.info('已載入配額快取，立即顯示');
-            // 恢復 Date 物件 (JSON 序列化後會變字串)
-            this.restoreDates(cached);
-            this.quotaData = cached;
-            this.statusBarManager.updateQuota(cached);
-            this._onDidUpdateQuota.fire(cached);
-        }
-    }
-
-    /**
-     * 恢復 JSON 反序列化後的 Date 物件
-     */
-    private restoreDates(data: QuotaData): void {
-        if (data.lastUpdated) data.lastUpdated = new Date(data.lastUpdated);
-        if (data.models) {
-            data.models.forEach(m => {
-                if (m.resetTime) m.resetTime = new Date(m.resetTime);
-            });
-        }
     }
 
     /**
@@ -164,52 +113,29 @@ export class QuotaMonitorController implements vscode.Disposable {
         this.logger.info('開始配額監控...');
 
         // 立即執行一次
-        const success = await this.refresh();
+        await this.refresh();
 
-        if (success) {
-            // 如果成功，進入正常輪詢
-            this.startPolling(this.pollingInterval * 1000);
-        } else {
-            // 如果失敗，進入熱身模式（快速重試）
-            this.logger.info('首次連接失敗，進入熱身模式 (5s polling)');
-            this.startPolling(5000); // 每 5 秒重試
-        }
+        // 設定定時輪詢
+        this.startPolling();
     }
 
     /**
      * 開始定時輪詢
      */
-    private startPolling(intervalMs: number): void {
+    private startPolling(): void {
         if (this.pollingTimer) {
             clearInterval(this.pollingTimer);
         }
 
-        let attempts = 0;
-        const WARMUP_LIMIT = 24; // 2 minutes max for warm-up (5s * 24)
-
         this.pollingTimer = setInterval(async () => {
-            const success = await this.refresh();
-
-            // 如果在熱身模式下成功了，切換回正常頻率
-            if (intervalMs === 5000 && success) {
-                this.logger.info('連接成功，切換回正常輪詢 (60s)');
-                this.startPolling(this.pollingInterval * 1000);
-            }
-            // 如果熱身模式超時仍未成功，也切換回正常頻率
-            else if (intervalMs === 5000 && !success) {
-                attempts++;
-                if (attempts >= WARMUP_LIMIT) {
-                    this.logger.warn('熱身模式超時，切換回正常輪詢 (60s)');
-                    this.startPolling(this.pollingInterval * 1000);
-                }
-            }
-        }, intervalMs);
+            await this.refresh();
+        }, this.pollingInterval * 1000);
     }
 
     /**
      * 刷新配額資料
      */
-    public async refresh(): Promise<boolean> {
+    public async refresh(): Promise<void> {
         try {
             this.logger.debug('正在刷新配額...');
 
@@ -217,31 +143,11 @@ export class QuotaMonitorController implements vscode.Disposable {
 
             if (data) {
                 this.quotaData = data;
-                this.quotaData = data;
-
-                // 計算分組
-                const groups = this.groupingManager.createGroups(data.models);
-
                 this.statusBarManager.updateQuota(data);
-                this.statusBarManager.updateGroups(groups);
-
-                // 更新快取
-                void this.context.globalState.update('antigravity-plus.quotaCache', data);
-
-                this.logger.debug('配額已更新並快取');
-                return true;
-            } else {
-                // 如果是 undefined，表示獲取失敗
-                if (!this.quotaData) {
-                    // 若從未獲取過數據，顯示 Offline
-                    this.statusBarManager.setOffline();
-                }
-                return false;
+                this.logger.debug('配額已更新');
             }
         } catch (error) {
             this.logger.error(`刷新配額失敗: ${error}`);
-            this.statusBarManager.setError('Connection Error');
-            return false;
         }
     }
 
@@ -317,7 +223,7 @@ export class QuotaMonitorController implements vscode.Disposable {
         this.pollingInterval = this.configManager.get<number>('quotaMonitor.pollingInterval') ?? 60;
 
         if (this.enabled) {
-            this.startPolling(this.pollingInterval * 1000);
+            this.startPolling();
         } else {
             if (this.pollingTimer) {
                 clearInterval(this.pollingTimer);

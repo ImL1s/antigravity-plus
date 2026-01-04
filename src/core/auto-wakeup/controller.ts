@@ -11,6 +11,7 @@ import { WakeupScheduler } from './scheduler';
 import { SystemScheduler } from './system-scheduler';
 import { WakeupTrigger } from './trigger';
 import { WakeupHistory, WakeupHistoryEntry } from './history';
+import { QuotaMonitorController } from '../quota-monitor/controller';  // Imported dependency
 
 export interface WakeupConfig {
     enabled: boolean;
@@ -21,6 +22,7 @@ export interface WakeupConfig {
     models: string[];
     useSystemScheduler: boolean;
     useResident: boolean;
+    notificationWebhook?: string;
 }
 
 const DEFAULT_CONFIG: WakeupConfig = {
@@ -46,7 +48,9 @@ export class AutoWakeupController implements vscode.Disposable {
 
     constructor(
         private context: vscode.ExtensionContext,
-        private logger: Logger
+        private logger: Logger,
+        private quotaMonitor: QuotaMonitorController, // Injected dependency
+        private statusBarManager?: any // Optional injection for now, will type properly if import available
     ) {
         this.config = this.loadConfig();
         this.scheduler = new WakeupScheduler(logger);
@@ -56,6 +60,13 @@ export class AutoWakeupController implements vscode.Disposable {
 
         // 綁定排程器回調
         this.scheduler.onTrigger(() => this.executeWakeup());
+    }
+
+    /**
+     * 設定 StatusBarManager (如果無法在構造函數中注入)
+     */
+    public setStatusBarManager(manager: any) {
+        this.statusBarManager = manager;
     }
 
     /**
@@ -70,17 +81,20 @@ export class AutoWakeupController implements vscode.Disposable {
         this.isRunning = true;
         const nextTime = this.calculateNextTriggerTime();
 
-        // 常駐模式
+        // 1. 常駐排程
         if (this.config.useResident) {
             this.scheduler.schedule(nextTime);
             this.logger.info(`常駐排程已設定: ${nextTime.toLocaleString()}`);
         }
 
-        // 系統排程
+        // 2. 系統排程
         if (this.config.useSystemScheduler) {
             await this.systemScheduler.createTask(this.config);
             this.logger.info('系統排程已建立');
         }
+
+        // 3. UI 更新
+        this.updateStatusBar(nextTime);
     }
 
     /**
@@ -95,6 +109,15 @@ export class AutoWakeupController implements vscode.Disposable {
         }
 
         this.logger.info('Auto Wake-up 已停止');
+    }
+
+    /**
+     * 更新狀態列
+     */
+    private updateStatusBar(nextRun: Date) {
+        if (this.statusBarManager && this.statusBarManager.updateBackgroundState) {
+            this.statusBarManager.updateBackgroundState(this.isRunning, nextRun);
+        }
     }
 
     /**
@@ -116,13 +139,17 @@ export class AutoWakeupController implements vscode.Disposable {
 
             if (result.success) {
                 this.logger.info(`Auto Wake-up 成功! 使用模型: ${model}, Tokens: ${tokensUsed}`);
+                // 發送 Webhook 通知
+                await this.sendNotification(true, model, tokensUsed);
             } else {
                 error = result.error;
                 this.logger.warn(`Auto Wake-up 失敗: ${error}`);
+                await this.sendNotification(false, model, 0, error);
             }
         } catch (e) {
             error = e instanceof Error ? e.message : String(e);
             this.logger.error(`Auto Wake-up 異常: ${error}`);
+            await this.sendNotification(false, model, 0, error);
         }
 
         // 記錄歷史
@@ -139,6 +166,30 @@ export class AutoWakeupController implements vscode.Disposable {
             const nextTime = this.calculateNextTriggerTime();
             this.scheduler.schedule(nextTime);
             this.logger.info(`下次喚醒: ${nextTime.toLocaleString()}`);
+            this.updateStatusBar(nextTime);
+        }
+    }
+
+    /**
+     * 發送通知
+     */
+    private async sendNotification(success: boolean, model: string, tokens: number, error?: string): Promise<void> {
+        if (!this.config.notificationWebhook) return;
+
+        try {
+            const payload = {
+                content: success
+                    ? `🟢 **Antigravity Auto Wakeup Success**\nModel: \`${model}\`\nTokens: ${tokens}\nTime: ${new Date().toLocaleString()}`
+                    : `🔴 **Antigravity Auto Wakeup Failed**\nError: ${error}\nTime: ${new Date().toLocaleString()}`
+            };
+
+            await fetch(this.config.notificationWebhook, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            this.logger.error(`發送通知失敗: ${e}`);
         }
     }
 
@@ -169,7 +220,20 @@ export class AutoWakeupController implements vscode.Disposable {
     /**
      * 智能計算：工作時間 - 3 小時
      */
+    /**
+     * 智能計算：
+     * 1. 預設：工作時間 - 3 小時
+     * 2. 適應性：如果配額耗盡且已知重置時間，則安排在重置時間後 5 分鐘
+     */
     private calculateSmartTime(now: Date): Date {
+        // 1. 檢查是否有耗盡的模型 (Adaptive Strategy)
+        const adaptiveTime = this.findEarliestResetTime(now);
+        if (adaptiveTime) {
+            this.logger.info(`[Smart Wakeup] 發現配額耗盡，調整喚醒時間至重置後: ${adaptiveTime.toLocaleString()}`);
+            return adaptiveTime;
+        }
+
+        // 2. 標準策略 (Standard Strategy)
         const [hours, minutes] = this.config.workStartTime.split(':').map(Number);
 
         // 喚醒時間 = 工作時間 - 3 小時
@@ -187,6 +251,44 @@ export class AutoWakeupController implements vscode.Disposable {
         }
 
         return triggerTime;
+    }
+
+    /**
+     * 尋找最早的重置時間 (針對已耗盡模型)
+     */
+    private findEarliestResetTime(now: Date): Date | null {
+        try {
+            const quotaData = this.quotaMonitor.getQuotaData();
+            if (!quotaData || !quotaData.models) return null;
+
+            let earliestReset: Date | null = null;
+
+            // 定義耗盡閾值 (例如 < 20%)
+            const EXHAUSTED_THRESHOLD = 20;
+
+            for (const model of quotaData.models) {
+                // 先只檢查被置頂或關鍵模型 (這裡簡化為檢查所有，或者可過濾 config.models)
+                // 檢查是否耗盡
+                if (model.percentage < EXHAUSTED_THRESHOLD && model.resetTime) {
+                    const resetTime = new Date(model.resetTime);
+
+                    // 只關心未來的重置時間
+                    if (resetTime > now) {
+                        if (!earliestReset || resetTime < earliestReset) {
+                            earliestReset = resetTime;
+                        }
+                    }
+                }
+            }
+
+            if (earliestReset) {
+                // 緩衝 5 分鐘，確保伺服器端已重置
+                return new Date(earliestReset.getTime() + 5 * 60 * 1000);
+            }
+        } catch (error) {
+            this.logger.error(`計算適應性時間時發生錯誤: ${error}`);
+        }
+        return null;
     }
 
     /**

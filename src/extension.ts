@@ -19,13 +19,10 @@ import { ImpactTracker } from './core/auto-approve/impact-tracker';
 import { PerformanceModeController } from './core/auto-approve/performance-mode';
 import { AutoWakeupController } from './core/auto-wakeup/controller';
 import { StatusBarManager } from './ui/status-bar';
-import { DashboardPanel, DashboardSerializer } from './ui/dashboard';
+import { DashboardPanel } from './ui/dashboard';
 import { Logger } from './utils/logger';
 import { ConfigManager } from './utils/config';
 import { initI18n, updateLocale, t } from './i18n';
-import { QuickPickQuotaDisplay } from './core/quota-monitor/quickpick';
-import { GroupingManager } from './core/quota-monitor/grouping';
-import { StatusBarFormatter } from './core/quota-monitor/status-bar-format';
 
 // 全域實例
 let autoApproveController: AutoApproveController | undefined;
@@ -36,9 +33,6 @@ let wakeupController: AutoWakeupController | undefined;
 let statusBarManager: StatusBarManager | undefined;
 let logger: Logger | undefined;
 let configManager: ConfigManager | undefined;
-let groupingManager: GroupingManager | undefined;
-let quickPickDisplay: QuickPickQuotaDisplay | undefined;
-let statusBarFormatter: StatusBarFormatter | undefined;
 
 /**
  * 擴展啟動
@@ -50,11 +44,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // 初始化 i18n
         initI18n();
 
-        // 取得版本號
-        const extension = vscode.extensions.getExtension('ImL1s.antigravity-plus');
-        const version = extension ? extension.packageJSON.version : '0.0.19-dev';
-        console.log(`[DEBUG] Antigravity Plus Version: ${version}`);
-
         // 初始化工具
         logger = new Logger();
         configManager = new ConfigManager();
@@ -64,27 +53,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         performanceMode = new PerformanceModeController(context);
 
         console.log('[DEBUG] Antigravity Plus: Basic tools initialized');
-        // 初始化 UI 工具
-        statusBarFormatter = new StatusBarFormatter();
-        console.log('[DEBUG] Antigravity Plus: StatusBarFormatter initialized');
-
         // 初始化 UI
-        statusBarManager = new StatusBarManager(context, statusBarFormatter);
+        statusBarManager = new StatusBarManager(context);
         console.log('[DEBUG] Antigravity Plus: StatusBarManager initialized');
 
         // 初始化控制器
         autoApproveController = new AutoApproveController(context, logger, configManager);
-        autoApproveController.setImpactTracker(impactTracker); // 連接 Impact Tracker
         console.log('[DEBUG] Antigravity Plus: AutoApproveController initialized');
         quotaMonitorController = new QuotaMonitorController(context, logger, configManager, statusBarManager);
         console.log('[DEBUG] Antigravity Plus: QuotaMonitorController initialized');
-        wakeupController = new AutoWakeupController(context, logger);
-        console.log('[DEBUG] Antigravity Plus: AutoWakeupController initialized');
 
-        // 初始化 Cockpit 對齊模組
-        groupingManager = new GroupingManager(context);
-        quickPickDisplay = new QuickPickQuotaDisplay(groupingManager);
-        console.log('[DEBUG] Antigravity Plus: Cockpit modules initialized');
+        // 4. 初始化自動喚醒控制器
+        // Inject StatusBarManager for UI updates
+        const wakeupController = new AutoWakeupController(context, logger, quotaMonitorController, statusBarManager);
+        context.subscriptions.push(wakeupController);
+
+        // 啟動自動喚醒 (如果已啟用)
+        wakeupController.start().catch(err => {
+            logger?.error(`自動喚醒啟動失敗: ${err}`);
+        });
+        console.log('[DEBUG] Antigravity Plus: AutoWakeupController initialized');
 
         // 開始新 session
         impactTracker.startSession();
@@ -96,28 +84,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // 註冊指令
         console.log('[DEBUG] Antigravity Plus: Registering commands...');
-        registerCommands(context, version);
-
-        // 4. 連接事件 (UI Updates)
-        quotaMonitorController?.onDidUpdateQuota(data => {
-            if (DashboardPanel.currentPanel) {
-                DashboardPanel.currentPanel.updateQuota(data);
-            }
-        });
-
-        // 5. 註冊 Webview Serializer (修復重啟後 Panel 失效問題)
-        vscode.window.registerWebviewPanelSerializer(
-            DashboardPanel.viewType,
-            new DashboardSerializer(
-                context.extensionUri,
-                impactTracker,
-                performanceMode,
-                wakeupController!,
-                () => autoApproveController?.isEnabled() ?? false,
-                version
-            )
-        );
-
+        registerCommands(context);
         console.log('[DEBUG] Antigravity Plus: Commands registered');
 
         // 監聽設定變更
@@ -143,13 +110,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Quota Monitor 已修正：使用 HTTPS + X-Codeium-Csrf-Token
         // 注意：使用 setImmediate 避免阻塞擴充功能啟動
         if (configManager.get<boolean>('quotaMonitor.enabled')) {
-            // DELAYED STARTUP: Wait 5 seconds to allow VS Code to stabilize
-            // This prevents "Startup Storm" where wmic/process scans compete with IDE initialization
-            setTimeout(() => {
+            setImmediate(() => {
                 quotaMonitorController?.start().catch(err => {
                     logger?.error(`QuotaMonitor start error: ${err}`);
                 });
-            }, 5000);
+            });
         }
 
         // Enable Auto Approve (Using Pesosz Command Strategy)
@@ -169,38 +134,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 /**
  * 註冊所有指令
  */
-function registerCommands(context: vscode.ExtensionContext, version: string): void {
+function registerCommands(context: vscode.ExtensionContext): void {
     // 開啟 Dashboard
-    // 開啟 Dashboard (根據設定決定顯示模式)
     context.subscriptions.push(
-        vscode.commands.registerCommand('antigravity-plus.openDashboard', async () => {
-            const config = vscode.workspace.getConfiguration('antigravity-plus.quota');
-            const displayMode = config.get<string>('displayMode') || 'webview';
-
-            if (displayMode === 'quickpick' && quickPickDisplay) {
-                // 使用 QuickPick 模式
-                const data = quotaMonitorController?.getQuotaData();
-                if (data) {
-                    await quickPickDisplay.show(data);
-                } else {
-                    vscode.window.showInformationMessage(t('notifications.quota.loading') || 'Quota data loading...');
-                    // 嘗試刷新並顯示
-                    await quotaMonitorController?.refresh().then(() => {
-                        const newData = quotaMonitorController?.getQuotaData();
-                        if (newData) quickPickDisplay!.show(newData);
-                    });
-                }
-            } else {
-                // 使用 Webview 模式
-                DashboardPanel.createOrShow(
-                    context.extensionUri,
-                    impactTracker!,
-                    performanceMode!,
-                    wakeupController!,
-                    autoApproveController?.isEnabled() ?? false,
-                    version
-                );
-            }
+        vscode.commands.registerCommand('antigravity-plus.openDashboard', () => {
+            DashboardPanel.createOrShow(
+                context.extensionUri,
+                impactTracker!,
+                performanceMode!,
+                wakeupController!,
+                autoApproveController?.isEnabled() ?? false
+            );
         })
     );
 
@@ -320,7 +264,7 @@ function registerCommands(context: vscode.ExtensionContext, version: string): vo
         })
     );
 
-    // QuickPick 備用模式 (Cockpit 對齊)
+    // QuickPick 備用模式
     context.subscriptions.push(
         vscode.commands.registerCommand('antigravity-plus.showQuickPick', async () => {
             const data = quotaMonitorController?.getQuotaData();
@@ -329,8 +273,18 @@ function registerCommands(context: vscode.ExtensionContext, version: string): vo
                 return;
             }
 
-            // 使用新的 QuickPickQuotaDisplay（支援分組、置頂等功能）
-            await quickPickDisplay?.show(data);
+            const items = data.models.map(model => ({
+                label: `${getStatusIcon(100 - model.percentage)} ${model.displayName}`,
+                description: `${100 - model.percentage}% ${t('dashboard.quota.remaining')}`,
+                detail: model.resetTime
+                    ? `${t('dashboard.quota.resetAt')}: ${model.resetTime.toLocaleTimeString()}`
+                    : undefined
+            }));
+
+            await vscode.window.showQuickPick(items, {
+                title: t('dashboard.quota.title'),
+                placeHolder: t('dashboard.quota.refresh')
+            });
         })
     );
 
@@ -339,32 +293,6 @@ function registerCommands(context: vscode.ExtensionContext, version: string): vo
         vscode.commands.registerCommand('antigravity-plus.testWakeup', async () => {
             await wakeupController?.testNow();
             vscode.window.showInformationMessage('Auto Wake-up 測試已執行');
-        })
-    );
-
-    // 切換狀態列格式 (Cockpit 對齊 - 6 種格式)
-    context.subscriptions.push(
-        vscode.commands.registerCommand('antigravity-plus.changeStatusBarFormat', async () => {
-            const formats = StatusBarFormatter.getAvailableFormats();
-            const currentFormat = statusBarFormatter?.getFormat() || 'icon-percent';
-
-            const items = formats.map(f => ({
-                label: f.id === currentFormat ? `$(check) ${f.label}` : f.label,
-                description: f.example,
-                format: f.id
-            }));
-
-            const selection = await vscode.window.showQuickPick(items, {
-                title: '狀態列格式',
-                placeHolder: '選擇狀態列顯示格式'
-            });
-
-            if (selection) {
-                statusBarFormatter?.setFormat(selection.format as any);
-                vscode.window.showInformationMessage(`狀態列格式已變更為: ${selection.description}`);
-                // 刷新狀態列
-                statusBarManager?.refresh();
-            }
         })
     );
 
@@ -382,28 +310,16 @@ function registerCommands(context: vscode.ExtensionContext, version: string): vo
             }
         })
     );
-
-    // 切換配額分組模式 (Cockpit 對齊)
-    context.subscriptions.push(
-        vscode.commands.registerCommand('antigravity-plus.toggleGrouping', async () => {
-            const vsConfig = vscode.workspace.getConfiguration('antigravity-plus.quota');
-            const currentState = vsConfig.get<boolean>('groupingEnabled') ?? true;
-            const newState = !currentState;
-
-            await vsConfig.update('groupingEnabled', newState, vscode.ConfigurationTarget.Global);
-
-            const message = newState
-                ? '配額分組模式: 已啟用 📊'
-                : '配額分組模式: 已停用 📋';
-            vscode.window.showInformationMessage(message);
-
-            // 刷新顯示
-            statusBarManager?.refresh();
-        })
-    );
 }
 
-
+/**
+ * 取得狀態圖示
+ */
+function getStatusIcon(percent: number): string {
+    if (percent >= 50) return '🟢';
+    if (percent >= 20) return '🟡';
+    return '🔴';
+}
 
 /**
  * 擴展停用

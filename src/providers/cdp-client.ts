@@ -16,21 +16,10 @@ export class CDPClient {
     private pendingMessages: Map<number, { resolve: (value: any) => void; reject: (reason?: any) => void }> = new Map();
     private connected = false;
 
-    private reconnectAttempts = 0;
-    private readonly MAX_RECONNECT_ATTEMPTS = 5;
-    private onDisconnectCallback?: () => void;
-
     constructor(private logger: Logger) { }
 
     /**
-     * 設置斷線回調
-     */
-    public onDisconnect(callback: () => void): void {
-        this.onDisconnectCallback = callback;
-    }
-
-    /**
-     * 連接到 CDP (支援自動重連)
+     * 連接到 CDP
      */
     public async connect(): Promise<void> {
         this.logger.debug('正在連接 CDP...');
@@ -48,7 +37,6 @@ export class CDPClient {
 
                 this.ws.on('open', () => {
                     this.connected = true;
-                    this.reconnectAttempts = 0; // 重置重連計數
                     this.logger.info('CDP 已連接');
                     resolve();
                 });
@@ -60,8 +48,6 @@ export class CDPClient {
                 this.ws.on('close', () => {
                     this.connected = false;
                     this.logger.info('CDP 已斷開');
-                    this.onDisconnectCallback?.();
-                    this.attemptReconnect();
                 });
 
                 this.ws.on('error', (error) => {
@@ -72,29 +58,6 @@ export class CDPClient {
                 reject(error);
             }
         });
-    }
-
-    /**
-     * 嘗試自動重連 (指數退避)
-     */
-    private async attemptReconnect(): Promise<void> {
-        if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-            this.logger.warn(`CDP 重連失敗，已達最大嘗試次數 (${this.MAX_RECONNECT_ATTEMPTS})`);
-            return;
-        }
-
-        this.reconnectAttempts++;
-        const delay = 2000 * this.reconnectAttempts; // 2s, 4s, 6s, 8s, 10s
-        this.logger.info(`CDP 將在 ${delay}ms 後嘗試重連 (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
-
-        await new Promise(resolve => setTimeout(resolve, delay));
-
-        try {
-            await this.connect();
-            this.logger.info('CDP 重連成功');
-        } catch (error) {
-            this.logger.error(`CDP 重連失敗: ${error}`);
-        }
     }
 
     /**

@@ -6,6 +6,52 @@
 
 import * as assert from 'assert';
 
+// Mock Config & Logger
+class MockLogger {
+    info(msg: string) { }
+    warn(msg: string) { }
+    error(msg: string) { }
+}
+
+class MockExtensionContext {
+    globalState = {
+        get: () => undefined,
+        update: () => Promise.resolve()
+    };
+    subscriptions: any[] = [];
+}
+
+// Mock Quota interfaces
+interface ModelQuota {
+    name: string;
+    percentage: number;
+    resetTime?: Date;
+}
+
+interface QuotaData {
+    models: ModelQuota[];
+}
+
+// Mock QuotaMonitor
+class MockQuotaMonitor {
+    private data: QuotaData | undefined;
+
+    setQuotaData(data: QuotaData) {
+        this.data = data;
+    }
+
+    getQuotaData(): QuotaData | undefined {
+        return this.data;
+    }
+}
+
+// Import Controller (Assuming it's exported and can be instantiated with mocks)
+// Since we are inside the test file which imports from src, we need to adapt the imports or copy the logic for unit testing if not exported.
+// For this environment, we will assume we can import the Controller class.
+// BUT, since we are editing the existing test file, we should keep the existing structure but update the setup.
+
+import { AutoWakeupController } from '../../core/auto-wakeup/controller';
+
 // ========== Scheduler Tests ==========
 
 interface SchedulerTestResult {
@@ -201,6 +247,101 @@ describe('Unit Tests - Auto Wake-up History', () => {
             history.add({ timestamp: new Date(), model: 'second', success: true, tokensUsed: 200 });
 
             assert.strictEqual(history.getLastEntry()?.model, 'second');
+        });
+
+        describe('Unit Tests - Smart Wakeup V2 Logic', () => {
+            let controller: AutoWakeupController;
+            let mockQuotaMonitor: MockQuotaMonitor;
+            let mockContext: any;
+            let mockLogger: any;
+
+            beforeEach(() => {
+                mockContext = new MockExtensionContext();
+                mockLogger = new MockLogger();
+                mockQuotaMonitor = new MockQuotaMonitor();
+
+                // Instantiate Controller with Mock QuotaMonitor
+                // Note: The real controller loads config from vscode.workspace.getConfiguration.
+                // We might need to mock that globallly or refactor controller to accept config.
+                // For this unit test, we rely on the global mock set up in run-unit-tests.js/mock-vscode.ts
+                // which defaults to empty config.
+
+                controller = new AutoWakeupController(mockContext as any, mockLogger as any, mockQuotaMonitor as any);
+            });
+
+            it('Scenario A: Healthy Quota -> Should use default work start time (Standard Strategy)', () => {
+                // Mock Healthy Data ( > 20%)
+                mockQuotaMonitor.setQuotaData({
+                    models: [{ name: 'gemini-pro', percentage: 80, resetTime: new Date() }]
+                });
+
+                // Current time: 2025-01-01 12:00
+                const now = new Date('2025-01-01T12:00:00');
+
+                // Work start 09:00 -> Wake 06:00
+                // Since now is 12:00, next wake should be Tomorrow 06:00
+                // Access private method for testing via casting
+                const nextTime = (controller as any).calculateSmartTime(now);
+
+                const expected = new Date('2025-01-02T06:00:00'); // Tomorrow
+                assert.strictEqual(nextTime.toISOString(), expected.toISOString());
+            });
+
+            it('Scenario B: Starving Model -> Should use reset time + buffer (Adaptive Strategy)', () => {
+                // Current time: 10:00
+                const now = new Date('2025-01-01T10:00:00');
+
+                // Reset time: 11:00 (Future)
+                const resetTime = new Date('2025-01-01T11:00:00');
+
+                // Mock Starving Data ( < 20%)
+                mockQuotaMonitor.setQuotaData({
+                    models: [{ name: 'gemini-pro', percentage: 0, resetTime: resetTime }]
+                });
+
+                const nextTime = (controller as any).calculateSmartTime(now);
+
+                // Expected: Reset Time (11:00) + 5 mins buffer = 11:05
+                const expected = new Date('2025-01-01T11:05:00');
+                assert.strictEqual(nextTime.toISOString(), expected.toISOString());
+            });
+
+            it('Scenario C: Multiple Starving Models -> Should pick the earliest valid reset time', () => {
+                const now = new Date('2025-01-01T10:00:00');
+
+                const resetTime1 = new Date('2025-01-01T14:00:00');
+                const resetTime2 = new Date('2025-01-01T11:00:00'); // Earlier
+
+                mockQuotaMonitor.setQuotaData({
+                    models: [
+                        { name: 'model-a', percentage: 5, resetTime: resetTime1 },
+                        { name: 'model-b', percentage: 10, resetTime: resetTime2 }
+                    ]
+                });
+
+                const nextTime = (controller as any).calculateSmartTime(now);
+
+                // Expected: Earlier Reset Time (11:00) + 5 mins = 11:05
+                const expected = new Date('2025-01-01T11:05:00');
+                assert.strictEqual(nextTime.toISOString(), expected.toISOString());
+            });
+
+            it('Scenario D: Reset time is in the past -> Should fallback to Standard Strategy', () => {
+                const now = new Date('2025-01-01T12:00:00');
+
+                // Reset time: 11:00 (Past) -> Invalid for scheduling
+                const resetTime = new Date('2025-01-01T11:00:00');
+
+                mockQuotaMonitor.setQuotaData({
+                    models: [{ name: 'gemini-pro', percentage: 0, resetTime: resetTime }]
+                });
+
+                const nextTime = (controller as any).calculateSmartTime(now);
+
+                // Fallback to Standard: Tomorrow 06:00
+                const expected = new Date('2025-01-02T06:00:00');
+                assert.strictEqual(nextTime.toISOString(), expected.toISOString());
+            });
         });
 
         it('應該限制最大數量為 100', () => {

@@ -10,7 +10,6 @@ import { QuotaData, UsageSession, ModelQuota } from '../core/quota-monitor/contr
 import { QuotaGroup } from '../core/quota-monitor/grouping';
 import { calculateCountdown } from '../core/quota-monitor/countdown';
 import { t } from '../i18n';
-import { StatusBarFormatter } from '../core/quota-monitor/status-bar-format';
 
 export type StatusBarFormat =
     | 'icon'              // 🟢
@@ -38,12 +37,7 @@ export class StatusBarManager implements vscode.Disposable {
     private currentGroups: QuotaGroup[] = [];
     private countdownTimer: NodeJS.Timeout | undefined;
 
-    // Formatter
-    private formatter: StatusBarFormatter;
-
-    constructor(private context: vscode.ExtensionContext, formatter?: StatusBarFormatter) {
-        this.formatter = formatter || new StatusBarFormatter();
-
+    constructor(private context: vscode.ExtensionContext) {
         // === 建立固定項目 (右至左優先級: 低數字 = 更靠右) ===
 
         // 0. Quota Display (最左邊配額顯示 - 對標 Cockpit)
@@ -60,7 +54,7 @@ export class StatusBarManager implements vscode.Disposable {
             vscode.StatusBarAlignment.Right,
             200
         );
-        this.autoApproveItem.command = 'antigravity-plus.toggleAutoApprove';
+        this.autoApproveItem.command = 'antigravity-plus.showAutoApproveMenu';
 
         // 2. Background Status
         this.backgroundItem = vscode.window.createStatusBarItem(
@@ -74,7 +68,7 @@ export class StatusBarManager implements vscode.Disposable {
             vscode.StatusBarAlignment.Right,
             198
         );
-        this.settingsItem.text = `$(beaker) Antigravity+`;
+        this.settingsItem.text = `$(gear) Antigravity`;
         this.settingsItem.tooltip = t('statusBar.settings.tooltip') || 'Open Antigravity Plus Settings';
         this.settingsItem.command = 'antigravity-plus.openDashboard';
 
@@ -130,7 +124,10 @@ export class StatusBarManager implements vscode.Disposable {
     /**
      * 更新背景執行狀態
      */
-    public updateBackgroundState(enabled: boolean): void {
+    /**
+     * 更新背景執行狀態 (UI Enhanced)
+     */
+    public updateBackgroundState(enabled: boolean, nextRun?: Date): void {
         this.backgroundEnabled = enabled;
 
         if (!this.backgroundItem) return;
@@ -143,7 +140,11 @@ export class StatusBarManager implements vscode.Disposable {
             this.backgroundItem.backgroundColor = undefined;
         }
 
-        this.backgroundItem.tooltip = t('statusBar.background.tooltip') || 'Auto Wake-up Background Status';
+        let tooltip = t('statusBar.background.tooltip') || 'Auto Wake-up Background Status';
+        if (nextRun) {
+            tooltip += `\n📅 Next Wakeup: ${nextRun.toLocaleString()}`;
+        }
+        this.backgroundItem.tooltip = tooltip;
     }
 
     // ========== Quota Groups ==========
@@ -204,14 +205,37 @@ export class StatusBarManager implements vscode.Disposable {
         const displayModels = data.models.slice(0, 3);
 
         for (const model of displayModels) {
-            // 使用新的 Formatter 進行格式化
-            const text = this.formatter.formatModel(model);
-            parts.push(text);
+            const remaining = 100 - model.percentage;
+            const icon = this.getStatusIcon(remaining);
+            const shortName = this.getShortName(model.displayName);
 
-            if (model.remainingPercentage !== undefined && model.remainingPercentage < minPercentage) {
-                minPercentage = model.remainingPercentage;
+            // 根據格式顯示
+            let text: string;
+            switch (format) {
+                case 'icon':
+                    text = icon;
+                    break;
+                case 'percentage':
+                    text = `${remaining}%`;
+                    break;
+                case 'iconPercentage':
+                    text = `${icon} ${remaining}%`;
+                    break;
+                case 'namePercentage':
+                    text = `${shortName}: ${remaining}%`;
+                    break;
+                case 'iconNamePercentage':
+                default:
+                    text = `${icon} ${shortName}: ${remaining}%`;
+                    break;
+            }
+
+            parts.push(text);
+            if (remaining < minPercentage) {
+                minPercentage = remaining;
             }
         }
+
         // 設定 quotaItem 文字
         this.quotaItem.text = parts.join(' | ');
         this.quotaItem.backgroundColor = undefined;
@@ -226,10 +250,10 @@ export class StatusBarManager implements vscode.Disposable {
         // 建立 tooltip
         this.quotaItem.tooltip = this.buildQuotaTooltip(data);
 
-        // 同時更新 groups (由 Controller 透過 updateGroups 明確呼叫，不再此處自動計算)
-        // if (data.models.length > 0) {
-        //     this.updateGroupsFromModels(data.models);
-        // }
+        // 同時更新 groups（保持向後相容）
+        if (data.models.length > 0 && this.currentGroups.length === 0) {
+            this.updateGroupsFromModels(data.models);
+        }
     }
 
     /**
