@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Antigravity Plus Banner" width="100%">
+  <img src="https://github.com/ImL1s/antigravity-plus/raw/main/assets/banner.png" alt="Antigravity Plus Banner" width="100%">
 </p>
 
 <h1 align="center">⚡ Antigravity Plus</h1>
