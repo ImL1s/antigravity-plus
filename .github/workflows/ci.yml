@@ -93,7 +93,6 @@ jobs:
 
       - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
-        continue-on-error: true
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: npx ovsx publish antigravity-plus.vsix -p $OVSX_PAT
