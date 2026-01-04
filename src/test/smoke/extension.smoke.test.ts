@@ -16,11 +16,13 @@ suite('Smoke Tests', () => {
             assert.ok(extension, '擴展應該存在');
 
             if (extension && !extension.isActive) {
+                console.log('Activating extension manually for smoke test...');
                 await extension.activate();
-                // Wait a bit for async registrations and side effects
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                // Wait for async initialization
+                await new Promise(resolve => setTimeout(resolve, 3000));
             }
 
+            console.log(`Extension active status: ${extension?.isActive}`);
             assert.ok(extension?.isActive, '擴展應該已啟動');
         });
     });
@@ -38,8 +40,15 @@ suite('Smoke Tests', () => {
         expectedCommands.forEach(command => {
             test(`指令 ${command} 應該已註冊`, async () => {
                 const commands = await vscode.commands.getCommands();
+                const isRegistered = commands.includes(command);
+
+                if (!isRegistered) {
+                    const antigravityCommands = commands.filter(c => c.startsWith('antigravity'));
+                    console.log(`Command ${command} not found. Available antigravity commands:`, antigravityCommands);
+                }
+
                 assert.ok(
-                    commands.includes(command),
+                    isRegistered,
                     `指令 ${command} 未註冊`
                 );
             });

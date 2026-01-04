@@ -38,75 +38,88 @@ let configManager: ConfigManager | undefined;
  * 擴展啟動
  */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    console.log('Antigravity Plus is now active!');
+    console.log('[DEBUG] Antigravity Plus: activate() started');
+    try {
 
-    // 初始化 i18n
-    initI18n();
+        // 初始化 i18n
+        initI18n();
 
-    // 初始化工具
-    logger = new Logger();
-    configManager = new ConfigManager();
+        // 初始化工具
+        logger = new Logger();
+        configManager = new ConfigManager();
 
-    // 初始化 Impact & Performance
-    impactTracker = new ImpactTracker(context);
-    performanceMode = new PerformanceModeController(context);
+        // 初始化 Impact & Performance
+        impactTracker = new ImpactTracker(context);
+        performanceMode = new PerformanceModeController(context);
 
-    // 初始化 UI
-    statusBarManager = new StatusBarManager(context);
+        console.log('[DEBUG] Antigravity Plus: Basic tools initialized');
+        // 初始化 UI
+        statusBarManager = new StatusBarManager(context);
+        console.log('[DEBUG] Antigravity Plus: StatusBarManager initialized');
 
-    // 初始化控制器
-    autoApproveController = new AutoApproveController(context, logger, configManager);
-    quotaMonitorController = new QuotaMonitorController(context, logger, configManager, statusBarManager);
-    wakeupController = new AutoWakeupController(context, logger);
+        // 初始化控制器
+        autoApproveController = new AutoApproveController(context, logger, configManager);
+        console.log('[DEBUG] Antigravity Plus: AutoApproveController initialized');
+        quotaMonitorController = new QuotaMonitorController(context, logger, configManager, statusBarManager);
+        console.log('[DEBUG] Antigravity Plus: QuotaMonitorController initialized');
+        wakeupController = new AutoWakeupController(context, logger);
+        console.log('[DEBUG] Antigravity Plus: AutoWakeupController initialized');
 
-    // 開始新 session
-    impactTracker.startSession();
+        // 開始新 session
+        impactTracker.startSession();
 
-    // 監聽 Performance Mode 變更
-    performanceMode.onChange((interval) => {
-        autoApproveController?.setPollingInterval(interval);
-    });
-
-    // 註冊指令
-    registerCommands(context);
-
-    // 監聽設定變更
-    context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('antigravity-plus')) {
-                configManager?.reload();
-
-                // 更新語言
-                if (e.affectsConfiguration('antigravity-plus.ui.language')) {
-                    updateLocale();
-                    statusBarManager?.refresh();
-                }
-
-                autoApproveController?.updateConfig();
-                quotaMonitorController?.updateConfig();
-                statusBarManager?.updateConfig();
-            }
-        })
-    );
-
-    // 啟動服務（使用修正後的 API 連接方式）
-    // Quota Monitor 已修正：使用 HTTPS + X-Codeium-Csrf-Token
-    // 注意：使用 setImmediate 避免阻塞擴充功能啟動
-    if (configManager.get<boolean>('quotaMonitor.enabled')) {
-        setImmediate(() => {
-            quotaMonitorController?.start().catch(err => {
-                logger?.error(`QuotaMonitor start error: ${err}`);
-            });
+        // 監聽 Performance Mode 變更
+        performanceMode.onChange((interval) => {
+            autoApproveController?.setPollingInterval(interval);
         });
+
+        // 註冊指令
+        console.log('[DEBUG] Antigravity Plus: Registering commands...');
+        registerCommands(context);
+        console.log('[DEBUG] Antigravity Plus: Commands registered');
+
+        // 監聽設定變更
+        context.subscriptions.push(
+            vscode.workspace.onDidChangeConfiguration(e => {
+                if (e.affectsConfiguration('antigravity-plus')) {
+                    configManager?.reload();
+
+                    // 更新語言
+                    if (e.affectsConfiguration('antigravity-plus.ui.language')) {
+                        updateLocale();
+                        statusBarManager?.refresh();
+                    }
+
+                    autoApproveController?.updateConfig();
+                    quotaMonitorController?.updateConfig();
+                    statusBarManager?.updateConfig();
+                }
+            })
+        );
+
+        // 啟動服務（使用修正後的 API 連接方式）
+        // Quota Monitor 已修正：使用 HTTPS + X-Codeium-Csrf-Token
+        // 注意：使用 setImmediate 避免阻塞擴充功能啟動
+        if (configManager.get<boolean>('quotaMonitor.enabled')) {
+            setImmediate(() => {
+                quotaMonitorController?.start().catch(err => {
+                    logger?.error(`QuotaMonitor start error: ${err}`);
+                });
+            });
+        }
+
+        // Enable Auto Approve (Using Pesosz Command Strategy)
+        autoApproveController.enable();
+
+        // Start Auto Wakeup (Using Cloud API)
+        // wakeupController.start();
+
+        logger.info('Antigravity Plus 已啟動');
+        console.log('[DEBUG] Antigravity Plus: activate() finished');
+    } catch (error) {
+        console.error('[ERROR] Antigravity Plus: Activation failed!', error);
+        throw error;
     }
-
-    // Enable Auto Approve (Using Pesosz Command Strategy)
-    autoApproveController.enable();
-
-    // Start Auto Wakeup (Using Cloud API)
-    // wakeupController.start();
-
-    logger.info('Antigravity Plus 已啟動');
 }
 
 /**
