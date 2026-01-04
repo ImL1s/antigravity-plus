@@ -58,22 +58,29 @@ suite('Integration Tests - Antigravity Mock', () => {
                 res.setHeader('Content-Type', 'application/json');
 
                 // 模擬 JSON-RPC API
-                if (req.url === '/api' && req.method === 'POST') {
-                    if (parsedBody && parsedBody.method === 'GetUserStatus') {
+                if (req.url === '/exa.language_server_pb.LanguageServerService/GetUserStatus' && req.method === 'POST') {
+                    // Check if body is valid JSON
+                    if (parsedBody && parsedBody.metadata) {
                         console.log('[MockServer] Handling GetUserStatus');
                         res.end(JSON.stringify({
-                            jsonrpc: '2.0',
-                            result: {
-                                quotas: [
-                                    {
-                                        model: 'gemini-1.5-pro',
-                                        limit: 50,
-                                        usage: 10,
-                                        resetTime: Date.now() + 3600000
-                                    }
-                                ]
-                            },
-                            id: parsedBody.id
+                            userStatus: {
+                                name: 'Test User',
+                                email: 'test@example.com',
+                                planStatus: {
+                                    planInfo: { teamsTier: 'Pro' }
+                                },
+                                cascadeModelConfigData: {
+                                    clientModelConfigs: [
+                                        {
+                                            modelOrAlias: { model: 'gemini-1.5-pro' },
+                                            quotaInfo: {
+                                                remainingFraction: 0.2, // 20% remaining -> 80% used
+                                                resetTime: new Date(Date.now() + 3600000).toISOString()
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
                         }));
                         return;
                     }
@@ -112,8 +119,7 @@ suite('Integration Tests - Antigravity Mock', () => {
         const data = await provider.fetchQuota();
 
         assert.ok(data, '應該要獲取到數據');
-        assert.strictEqual(lastRequest?.url, '/api', '應該發送請求到 /api');
-        assert.strictEqual(lastRequest?.body?.method, 'GetUserStatus', '應該呼叫 GetUserStatus 方法');
+        assert.strictEqual(lastRequest?.url, '/exa.language_server_pb.LanguageServerService/GetUserStatus', '應該發送請求到正確的 endpoint');
         assert.ok((data?.models.length ?? 0) > 0, '應該解析出模型數據');
     });
 });
