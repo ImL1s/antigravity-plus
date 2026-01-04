@@ -7,8 +7,14 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  test:
+    name: Test (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [20]
 
     steps:
       - uses: actions/checkout@v4
@@ -16,13 +22,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Lint
+        if: matrix.os == 'ubuntu-latest'
         run: npm run lint
 
       - name: Compile
@@ -32,17 +39,18 @@ jobs:
         run: npm run test:unit
 
       - name: Run Smoke Tests
+        if: matrix.os == 'ubuntu-latest'
         run: xvfb-run -a npm run test:smoke
 
-      - name: Verify VSIX Packaging
-        run: |
-          npm install -g @vscode/vsce
-          vsce package -o verify.vsix
+      - name: Run Test CLI (Cross-platform)
+        if: matrix.os != 'ubuntu-latest'
+        run: npm test
 
-  release:
-    needs: build
+  package:
+    name: Package VSIX
+    needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
 
     steps:
       - uses: actions/checkout@v4
@@ -56,20 +64,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Compile
+        run: npm run compile
+
       - name: Install vsce
         run: npm install -g @vscode/vsce
 
       - name: Build VSIX
-        run: vsce package
+        run: vsce package -o antigravity-plus.vsix
 
       - name: Upload VSIX Artifact
         uses: actions/upload-artifact@v4
         with:
           name: antigravity-plus-vsix
-          path: '*.vsix'
+          path: antigravity-plus.vsix
+
+  release:
+    name: Release to Open VSX
+    needs: package
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download VSIX Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: antigravity-plus-vsix
 
       - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish -t $OVSX_PAT
+        run: npx ovsx publish -p antigravity-plus.vsix -t $OVSX_PAT
