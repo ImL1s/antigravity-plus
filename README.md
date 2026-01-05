@@ -20,8 +20,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/VS%20Code-1.85+-blue.svg" alt="VS Code">
   <img src="https://img.shields.io/badge/Node.js-20+-green.svg" alt="Node.js">
-  <img src="https://img.shields.io/github/license/user/antigravity-plus" alt="License">
-  <img src="https://img.shields.io/github/actions/workflow/status/user/antigravity-plus/ci.yml" alt="CI">
+  <img src="https://img.shields.io/github/license/ImL1s/antigravity-plus" alt="License">
+  <img src="https://img.shields.io/github/actions/workflow/status/ImL1s/antigravity-plus/ci.yml" alt="CI">
 </p>
 
 ---
@@ -75,7 +75,7 @@ code --install-extension antigravity-plus-x.x.x.vsix
 
 ### From Source
 ```bash
-git clone https://github.com/user/antigravity-plus.git
+git clone https://github.com/ImL1s/antigravity-plus.git
 cd antigravity-plus
 npm install
 npm run compile
@@ -189,5 +189,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-  Made with ⚡ by <a href="https://github.com/user">Your Name</a>
+  Made with ⚡ by <a href="https://github.com/ImL1s">ImL1s</a>
 </p>
