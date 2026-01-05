@@ -2,22 +2,15 @@
 /**
  * Global Test Setup for Unit Tests
  * 
- * This file provides the mock VS Code API.
- * It is consumed by the fake 'vscode' package created in node_modules.
+ * Provides the mock VS Code API for unit tests.
+ * This file is required by the fake 'vscode' package in node_modules.
  */
 
-// Mock VS Code API
 export const mockVScodeApi = {
     window: {
         createStatusBarItem: () => ({
-            text: '',
-            tooltip: '',
-            command: '',
-            color: '',
-            backgroundColor: '',
-            show: () => { },
-            hide: () => { },
-            dispose: () => { }
+            text: '', tooltip: '', command: '', color: '', backgroundColor: '',
+            show: () => { }, hide: () => { }, dispose: () => { }
         }),
         showInformationMessage: () => Promise.resolve(),
         showErrorMessage: () => Promise.resolve(),
@@ -46,7 +39,7 @@ export const mockVScodeApi = {
     commands: {
         registerCommand: () => ({ dispose: () => { } }),
         executeCommand: () => Promise.resolve(),
-        getCommands: () => Promise.resolve(['antigravity-plus.toggleAutoApprove', 'antigravity-plus.openDashboard'])
+        getCommands: () => Promise.resolve(['antigravity-plus.toggleAutoApprove'])
     },
     StatusBarAlignment: { Left: 1, Right: 2 },
     Uri: {
@@ -64,17 +57,9 @@ export const mockVScodeApi = {
         extensionUri = { fsPath: '/mock/path' };
         asAbsolutePath = (p: string) => p;
     },
-    OverviewRulerLane: { Left: 1 },
     ThemeColor: class { },
     ThemeIcon: class { },
-    extensions: {
-        getExtension: () => ({
-            id: 'ImL1s.antigravity-plus',
-            isActive: true,
-            activate: () => Promise.resolve(),
-            exports: {}
-        })
-    }
+    extensions: { getExtension: () => undefined }
 };
 
 console.log('✅ VS Code Mock Provider initialized');

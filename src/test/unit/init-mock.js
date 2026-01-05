@@ -1,28 +1,47 @@
 const fs = require('fs');
 const path = require('path');
 
-const targetDir = path.join(__dirname, '../../../node_modules/vscode');
-const indexFile = path.join(targetDir, 'index.js');
-const packageFile = path.join(targetDir, 'package.json');
+/**
+ * Robust VS Code Mock Initializer
+ * Creates a fake 'vscode' package in node_modules to avoid runtime hijacking.
+ */
+function initMock() {
+    const rootDir = process.cwd();
+    const targetDir = path.resolve(rootDir, 'node_modules/vscode');
+    const indexFile = path.join(targetDir, 'index.js');
+    const packageFile = path.join(targetDir, 'package.json');
 
-if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
+    console.log(`[MockInit] Target: ${targetDir}`);
+
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    // Standard package.json for the fake module
+    fs.writeFileSync(packageFile, JSON.stringify({
+        name: 'vscode',
+        version: '1.0.0',
+        main: 'index.js'
+    }, null, 2));
+
+    // index.js: Resolves the mock from the compiled setup.js
+    const setupPath = path.resolve(rootDir, 'out/test/unit/setup.js').replace(/\\/g, '/');
+    const content = `
+'use strict';
+const path = require('path');
+const setupPath = "${setupPath}";
+console.log('[vscode-mock] Loading from:', setupPath);
+try {
+    const { mockVScodeApi } = require(setupPath);
+    module.exports = mockVScodeApi;
+} catch (e) {
+    console.error('[vscode-mock] Failed to load mock:', e);
+    process.exit(1);
 }
-
-// Write a dummy package.json
-fs.writeFileSync(packageFile, JSON.stringify({
-    name: 'vscode',
-    version: '1.0.0',
-    main: 'index.js'
-}, null, 2));
-
-// Write the index.js that points to our compiled mock
-// Note: We use a relative path from node_modules/vscode to out/test/unit/setup.js
-const content = `
-const { mockVScodeApi } = require('../../out/test/unit/setup.js');
-module.exports = mockVScodeApi;
 `;
 
-fs.writeFileSync(indexFile, content);
+    fs.writeFileSync(indexFile, content);
+    console.log('✅ Created robust vscode mock package in node_modules/vscode');
+}
 
-console.log('✅ Created robust vscode mock package in node_modules/vscode');
+initMock();
