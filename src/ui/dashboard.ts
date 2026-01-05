@@ -9,6 +9,7 @@ import { ImpactTracker, ImpactStats } from '../core/auto-approve/impact-tracker'
 import { PerformanceModeController } from '../core/auto-approve/performance-mode';
 import { AutoWakeupController, WakeupConfig } from '../core/auto-wakeup/controller';
 import { ContextOptimizerController, ContextSuggestion } from '../core/context-optimizer/controller';
+import { QuotaMonitorController, QuotaData } from '../core/quota-monitor/controller';
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;
@@ -25,6 +26,7 @@ export class DashboardPanel {
         private performanceMode: PerformanceModeController,
         private wakeupController: AutoWakeupController,
         private contextOptimizer: ContextOptimizerController,
+        private quotaController: QuotaMonitorController,
         private isAutoApproveEnabled: boolean
     ) {
         this._panel = panel;
@@ -45,6 +47,7 @@ export class DashboardPanel {
         performanceMode: PerformanceModeController,
         wakeupController: AutoWakeupController,
         contextOptimizer: ContextOptimizerController,
+        quotaController: QuotaMonitorController,
         isAutoApproveEnabled: boolean
     ): DashboardPanel {
         const column = vscode.window.activeTextEditor
@@ -74,6 +77,7 @@ export class DashboardPanel {
             performanceMode,
             wakeupController,
             contextOptimizer,
+            quotaController,
             isAutoApproveEnabled
         );
 
@@ -128,6 +132,12 @@ export class DashboardPanel {
                 this.impactTracker.logActivity('optimization', '執行了 Context 優化建議');
                 this._update();
                 break;
+            case 'refreshQuota':
+                this.quotaController.refresh().then(() => {
+                    const data = this.quotaController.getQuotaData();
+                    this._panel.webview.postMessage({ command: 'updateQuota', data });
+                });
+                break;
         }
     }
 
@@ -158,6 +168,23 @@ export class DashboardPanel {
             color: #e0e0e0;
             padding: 20px;
             min-height: 100vh;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #667eea;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
         }
         
         .header {
@@ -486,6 +513,18 @@ export class DashboardPanel {
         </div>
     </div>
 
+    <!-- Quota Monitor -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">📊 Quota Monitor</span>
+            <button class="btn btn-secondary" onclick="refreshQuota()">🔄 Refresh</button>
+        </div>
+        <div id="quota-content" style="text-align: center; padding: 20px;">
+            <div class="spinner"></div>
+            <span>Waiting for quota data...</span>
+        </div>
+    </div>
+
     <!-- Performance Mode -->
     <div class="card">
         <div class="card-header">
@@ -605,9 +644,39 @@ export class DashboardPanel {
             vscode.postMessage({ command: 'analyzeContext' });
         }
 
-        function applyOptimization() {
-            vscode.postMessage({ command: 'applyOptimization' });
+        function refreshQuota() {
+            const content = document.getElementById('quota-content');
+            content.innerHTML = '<div class="spinner"></div><span>Updating...</span>';
+            vscode.postMessage({ command: 'refreshQuota' });
         }
+
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.command === 'updateQuota') {
+                const content = document.getElementById('quota-content');
+                if (message.data) {
+                    const models = message.data.models || [];
+                    const html = models.map(m => \`
+                        <div style="margin-bottom: 8px; text-align: left;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+                                <span>\${m.displayName}</span>
+                                <span>\${m.percentage}%</span>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; overflow: hidden;">
+                                <div style="background: \${m.isExhausted ? '#ef4444' : '#4ade80'}; width: \${m.percentage}%; height: 100%;"></div>
+                            </div>
+                            <div style="font-size: 10px; color: #888; margin-top: 2px;">Resets in: \${m.timeUntilResetFormatted}</div>
+                        </div>
+                    \`).join('');
+                    content.innerHTML = html || 'No quota data available';
+                } else {
+                    content.innerHTML = '<span style="color: #ef4444">Failed to load quota</span>';
+                }
+            }
+        });
+
+        // Initial load
+        refreshQuota();
     </script>
 </body>
 </html>`;

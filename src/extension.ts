@@ -150,6 +150,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 performanceMode!,
                 wakeupController!,
                 contextOptimizer!,
+                quotaMonitorController!,
                 autoApproveController?.isEnabled() ?? false
             );
         })

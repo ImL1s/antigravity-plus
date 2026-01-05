@@ -8,7 +8,7 @@ import { glob } from 'glob';
 
 export async function run(): Promise<void> {
     const mocha = new Mocha({
-        ui: 'tdd',
+        ui: 'bdd',
         color: true,
         timeout: 60000
     });
