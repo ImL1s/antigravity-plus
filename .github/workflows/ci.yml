@@ -41,6 +41,9 @@ jobs:
       - name: Compile
         run: npm run compile
 
+      - name: Debug - List Build Output
+        run: ls -R out
+
       - name: Run Unit Tests
         run: npm run test:unit
 
