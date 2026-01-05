@@ -52,14 +52,20 @@ jobs:
         if: failure()
         run: ls -R out/test/unit/
 
-  package:
-    name: Package VSIX
+  release:
+    name: Semantic Release
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -67,50 +73,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-
-
       - name: Install dependencies
         run: npm ci
 
-      - name: Compile
-        run: npm run compile
-
-      - name: Install vsce
-        run: npm install -g @vscode/vsce
-
-      - name: Build VSIX
-        run: vsce package --allow-star-activation -o antigravity-plus.vsix
-
-      - name: Upload VSIX Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: antigravity-plus-vsix
-          path: antigravity-plus.vsix
-
-  release:
-    name: Release to Open VSX
-    needs: package
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Download VSIX Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: antigravity-plus-vsix
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Publish to Open VSX
+      - name: Semantic Release
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: |
-          if [ -z "$OVSX_PAT" ]; then
-            echo "::warning::Skipping release: OVSX_PAT secret is not set."
-            exit 0
-          fi
-          npm install -g ovsx
-          ovsx publish antigravity-plus.vsix -p "$OVSX_PAT"
+        run: npx semantic-release
