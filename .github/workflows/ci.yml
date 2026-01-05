@@ -79,7 +79,7 @@ jobs:
         run: npm install -g @vscode/vsce
 
       - name: Build VSIX
-        run: vsce package -o antigravity-plus.vsix
+        run: vsce package --allow-star-activation -o antigravity-plus.vsix
 
       - name: Upload VSIX Artifact
         uses: actions/upload-artifact@v4
