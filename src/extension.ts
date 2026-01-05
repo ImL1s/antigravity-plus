@@ -71,7 +71,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // 4. 初始化自動喚醒控制器
         // Inject StatusBarManager for UI updates
-        const wakeupController = new AutoWakeupController(context, logger, quotaMonitorController, statusBarManager);
+        wakeupController = new AutoWakeupController(context, logger, quotaMonitorController, statusBarManager);
         context.subscriptions.push(wakeupController);
 
         // 啟動自動喚醒 (如果已啟用)
