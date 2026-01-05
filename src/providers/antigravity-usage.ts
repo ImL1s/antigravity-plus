@@ -12,7 +12,6 @@
 import { Logger } from '../utils/logger';
 import { QuotaData, ModelQuota } from '../core/quota-monitor/controller';
 import * as https from 'https';
-import * as os from 'os';
 import { ProcessDetector, AntigravityProcess } from '../core/quota-monitor/process-detector';
 
 // 常數

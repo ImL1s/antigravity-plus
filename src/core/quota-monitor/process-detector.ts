@@ -7,7 +7,6 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import * as http from 'http';
 import * as https from 'https';
 import * as os from 'os';
 import { Logger } from '../../utils/logger';
@@ -19,8 +18,7 @@ const execAsync = promisify(exec);
 // ==========================================
 
 const TIMING = {
-    PROCESS_CMD_TIMEOUT_MS: 5000,
-    PROCESS_SCAN_RETRY_MS: 1000
+    PROCESS_CMD_TIMEOUT_MS: 5000
 };
 
 const PROCESS_NAMES = {
@@ -66,6 +64,14 @@ export interface PlatformStrategy {
 // ==========================================
 
 export class WindowsStrategy implements PlatformStrategy {
+    /**
+     * Sanitize process name to prevent command injection.
+     * Only allows alphanumeric characters, dots, underscores, and hyphens.
+     */
+    private sanitizeProcessName(name: string): string {
+        return name.replace(/[^a-zA-Z0-9._-]/g, '');
+    }
+
     private isAntigravityProcess(commandLine: string): boolean {
         if (!commandLine.includes('--extension_server_port')) return false;
         if (!commandLine.includes('--csrf_token')) return false;
@@ -73,8 +79,9 @@ export class WindowsStrategy implements PlatformStrategy {
     }
 
     getProcessListCommand(processName: string): string {
+        const safeName = this.sanitizeProcessName(processName);
         const utf8Header = '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ';
-        return `chcp 65001 >nul && powershell -NoProfile -Command "${utf8Header}Get-CimInstance Win32_Process -Filter 'name=''${processName}''' | Select-Object ProcessId,CommandLine | ConvertTo-Json"`;
+        return `chcp 65001 >nul && powershell -NoProfile -Command "${utf8Header}Get-CimInstance Win32_Process -Filter 'name=''${safeName}''' | Select-Object ProcessId,CommandLine | ConvertTo-Json"`;
     }
 
     getProcessByKeywordCommand(): string {
@@ -104,10 +111,7 @@ export class WindowsStrategy implements PlatformStrategy {
 
             for (const item of data) {
                 const commandLine = item.CommandLine || '';
-                // Note: Relaxed check for keyword search vs process name search
-                // But for safety, we check basics. 
-                // However, existing strategy strict check `isAntigravityProcess` might filter out valid ones if args changed.
-                // But let's stick to the reference strategy.
+                // Filter to only Antigravity processes with required flags
                 if (!commandLine || !this.isAntigravityProcess(commandLine)) {
                     continue;
                 }
@@ -116,7 +120,7 @@ export class WindowsStrategy implements PlatformStrategy {
                 if (!pid) continue;
 
                 const portMatch = commandLine.match(/--extension_server_port[=\s]+(\d+)/);
-                const tokenMatch = commandLine.match(/--csrf_token[=\s]+([a-f0-9-]+)/i);
+                const tokenMatch = commandLine.match(/--csrf_token[=\s]+([a-zA-Z0-9-]+)/i);
 
                 if (portMatch && tokenMatch) {
                     candidates.push({
@@ -176,8 +180,17 @@ export class UnixStrategy implements PlatformStrategy {
         return /--app_data_dir\s+antigravity\b/i.test(commandLine);
     }
 
+    /**
+     * Sanitize process name to prevent command injection.
+     * Only allows alphanumeric characters, dots, underscores, and hyphens.
+     */
+    private sanitizeProcessName(name: string): string {
+        return name.replace(/[^a-zA-Z0-9._-]/g, '');
+    }
+
     getProcessListCommand(processName: string): string {
-        return `ps -ww -eo pid,ppid,args | grep "${processName}" | grep -v grep`;
+        const safeName = this.sanitizeProcessName(processName);
+        return `ps -ww -eo pid,ppid,args | grep "${safeName}" | grep -v grep`;
     }
 
     parseProcessInfo(stdout: string): ProcessInfo[] {
@@ -197,11 +210,11 @@ export class UnixStrategy implements PlatformStrategy {
             const portMatch = cmd.match(/--extension_server_port[=\s]+(\d+)/);
             const tokenMatch = cmd.match(/--csrf_token[=\s]+([a-zA-Z0-9-]+)/i);
 
-            if (tokenMatch && this.isAntigravityProcess(cmd)) {
+            if (portMatch && tokenMatch && this.isAntigravityProcess(cmd)) {
                 candidates.push({
                     pid,
                     ppid,
-                    extensionPort: portMatch ? parseInt(portMatch[1], 10) : 0,
+                    extensionPort: parseInt(portMatch[1], 10),
                     csrfToken: tokenMatch[1]
                 });
             } else {
