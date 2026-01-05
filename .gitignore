@@ -8,3 +8,5 @@ Thumbs.db
 *.txt
 .eslintcache
 .vscode/
+run_jobs_*.json
+ubuntu_run*.log
