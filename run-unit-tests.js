@@ -3,30 +3,39 @@ const originalRequire = Module.prototype.require;
 
 // Enable global mock
 try {
-    require('./out/test/unit/mock-vscode').mockVscode();
-} catch (e) {
-    console.warn('Mock setup failed (ok if running from clean state before compile):', e.message);
-}
+    try {
+        require('./out/test/unit/mock-vscode').mockVscode();
+        console.log('✅ Mock vscode loaded successfully');
+    } catch (e) {
+        console.error('❌ Failed to load mock-vscode:', e);
+    }
 
-const Mocha = require('mocha');
-const path = require('path');
+    // Create the mocha test
+    const Mocha = require('mocha');
+    const path = require('path');
+    const glob = require('glob');
 
-const mocha = new Mocha({
-    ui: 'bdd',
-    color: true,
-    timeout: 10000
-});
+    const mocha = new Mocha({
+        ui: 'tdd',
+        color: true,
+        timeout: 10000 // Increase timeout
+    });
 
-// Add test files
-mocha.addFile(path.join(__dirname, 'out/test/unit/sb_formatter.test.js'));
-mocha.addFile(path.join(__dirname, 'out/test/unit/grouping.test.js'));
-mocha.addFile(path.join(__dirname, 'out/test/unit/status-bar.test.js'));
-mocha.addFile(path.join(__dirname, 'out/test/unit/auto-wakeup.test.js'));
+    const testsRoot = path.resolve(__dirname, 'out/test/unit');
+    console.log(`🔍 Searching for tests in: ${testsRoot}`);
 
-console.log('Running unit tests...');
+    const files = glob.sync('**/*.test.js', { cwd: testsRoot });
+    console.log(`📦 Found ${files.length} test files`);
 
-try {
+    files.forEach(f => {
+        const filePath = path.resolve(testsRoot, f);
+        // console.log(`Adding test file: ${filePath}`);
+        mocha.addFile(filePath);
+    });
+
+    console.log('🚀 Starting Mocha run...');
     mocha.run(failures => {
+        console.log(`🏁 Mocha run completed with ${failures} failures`);
         process.exitCode = failures ? 1 : 0;
     });
 } catch (err) {
