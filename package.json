@@ -236,7 +236,7 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "npm run compile && vscode-test",
-    "test:unit": "npm run compile && node run-unit-tests.js",
+    "test:unit": "npm run compile && mocha --ui bdd --timeout 15000 --require out/test/unit/setup.js out/test/unit/**/*.test.js",
     "test:smoke": "npm run compile && node out/test/smoke/runTest.js",
     "test:e2e": "npm run compile && node out/test/e2e/runTest.js",
     "test:integration": "npm run compile && node out/test/integration/runTest.js",

@@ -208,7 +208,7 @@ export class ProcessDetector {
                 timeout: 2000
             };
 
-            const req = http.request(options, (res: any) => {
+            const req = this.httpClient.request(options, (res: any) => {
                 let data = '';
                 res.on('data', (chunk: string) => data += chunk);
                 res.on('end', () => {
