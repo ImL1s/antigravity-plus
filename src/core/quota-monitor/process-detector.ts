@@ -166,7 +166,7 @@ export class UnixStrategy implements PlatformStrategy {
                 await execAsync(`which ${cmd}`);
                 this.availablePortCommand = cmd as any;
                 return;
-            } catch { }
+            } catch { /* command not available */ }
         }
     }
 
