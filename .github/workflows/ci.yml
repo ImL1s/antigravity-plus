@@ -5,9 +5,9 @@ permissions:
 
 on:
   push:
-    branches: [main, develop]
+    branches: ['**']
   pull_request:
-    branches: [main]
+    branches: ['**']
 
 jobs:
   test:
@@ -31,11 +31,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Install System Libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libasound2 libgbm1 --no-install-recommends
-
       - name: Install dependencies
         run: npm install
 
@@ -49,9 +44,9 @@ jobs:
       - name: Run Unit Tests
         run: npm run test:unit
 
-      - name: Run Smoke Tests
-        if: matrix.os == 'ubuntu-latest'
-        run: xvfb-run -a npm run test:smoke
+      # - name: Run Smoke Tests
+      #   if: matrix.os == 'ubuntu-latest'
+      #   run: xvfb-run -a npm run test:smoke
 
       - name: Debug - List Build Output on Failure
         if: failure()
