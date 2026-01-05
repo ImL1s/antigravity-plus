@@ -42,13 +42,13 @@ class TestableQuotaMonitorController extends QuotaMonitorController {
     }
 }
 
-suite('Quota Monitor Integration Tests', () => {
+describe('Quota Monitor Integration Tests', () => {
     let controller: TestableQuotaMonitorController;
     let mockStatusBar: MockStatusBarManager;
     let mockLogger: Logger;
     let configManager: ConfigManager;
 
-    setup(() => {
+    beforeEach(() => {
         mockLogger = new MockLogger() as unknown as Logger;
         mockStatusBar = new MockStatusBarManager();
         configManager = new ConfigManager();
@@ -70,15 +70,15 @@ suite('Quota Monitor Integration Tests', () => {
         );
     });
 
-    teardown(() => {
+    afterEach(() => {
         controller.dispose();
     });
 
-    test('Should initialize and not crash', () => {
+    it('Should initialize and not crash', () => {
         assert.ok(controller);
     });
 
-    test('Refresh should update status bar with fetched data', async () => {
+    it('Refresh should update status bar with fetched data', async () => {
         const mockData: QuotaData = {
             models: [
                 { name: 'gemini-pro', displayName: 'Pro', used: 10, total: 100, percentage: 10, remainingFraction: 0.9 },
@@ -97,7 +97,7 @@ suite('Quota Monitor Integration Tests', () => {
         assert.strictEqual(updatedData?.models[0].name, 'gemini-pro');
     });
 
-    test('Should handle exhausted quota correctly', async () => {
+    it('Should handle exhausted quota correctly', async () => {
         const mockData: QuotaData = {
             models: [
                 { name: 'gemini-pro', displayName: 'Pro', used: 100, total: 100, percentage: 100, remainingFraction: 0, isExhausted: true }

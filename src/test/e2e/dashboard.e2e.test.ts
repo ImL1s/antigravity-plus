@@ -7,13 +7,13 @@ import * as vscode from 'vscode';
 
 import { waitForExtension } from './test-utils';
 
-suite('E2E Tests - Dashboard', () => {
-    suiteSetup(async () => {
+describe('E2E Tests - Dashboard', () => {
+    before(async () => {
         await waitForExtension();
     });
 
-    suite('開啟 Dashboard', () => {
-        test('執行 openDashboard 指令不應該報錯', async () => {
+    describe('開啟 Dashboard', () => {
+        it('執行 openDashboard 指令不應該報錯', async () => {
             try {
                 await vscode.commands.executeCommand('antigravity-plus.openDashboard');
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -24,8 +24,8 @@ suite('E2E Tests - Dashboard', () => {
         });
     });
 
-    suite('顯示日誌', () => {
-        test('執行 showLogs 指令不應該報錯', async () => {
+    describe('顯示日誌', () => {
+        it('執行 showLogs 指令不應該報錯', async () => {
             try {
                 await vscode.commands.executeCommand('antigravity-plus.showLogs');
                 assert.ok(true, '日誌顯示成功');
@@ -35,8 +35,8 @@ suite('E2E Tests - Dashboard', () => {
         });
     });
 
-    suite('Context Optimizer', () => {
-        test('執行 optimizeContext 指令不應該報錯', async () => {
+    describe('Context Optimizer', () => {
+        it('執行 optimizeContext 指令不應該報錯', async () => {
             try {
                 await vscode.commands.executeCommand('antigravity-plus.optimizeContext');
                 await new Promise(resolve => setTimeout(resolve, 500));

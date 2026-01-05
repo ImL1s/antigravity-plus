@@ -94,13 +94,13 @@ class TestableAntigravityUsageProvider extends AntigravityUsageProvider {
     }
 }
 
-suite('Integration Tests - Antigravity Mock', () => {
+describe('Integration Tests - Antigravity Mock', () => {
     let server: http.Server;
     let serverPort: number;
     let lastRequest: { method: string, url: string, body?: any } | undefined;
 
     // 準備 Mock Server
-    suiteSetup(async () => {
+    before(async () => {
         server = http.createServer((req, res) => {
             let body = '';
             req.on('data', chunk => {
@@ -163,17 +163,17 @@ suite('Integration Tests - Antigravity Mock', () => {
         });
     });
 
-    suiteTeardown(async () => {
+    after(async () => {
         return new Promise<void>((resolve) => {
             server.close(() => resolve());
         });
     });
 
-    setup(() => {
+    beforeEach(() => {
         lastRequest = undefined;
     });
 
-    test('AntigravityUsageProvider 應該能從 API 獲取配額', async () => {
+    it('AntigravityUsageProvider 應該能從 API 獲取配額', async () => {
         const provider = new TestableAntigravityUsageProvider(new ConsoleLogger(), serverPort);
 
         const data = await provider.fetchQuota();

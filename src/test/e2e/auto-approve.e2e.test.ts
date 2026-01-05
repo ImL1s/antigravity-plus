@@ -7,13 +7,13 @@ import * as vscode from 'vscode';
 
 import { waitForExtension } from './test-utils';
 
-suite('E2E Tests - Auto Approve', () => {
-    suiteSetup(async () => {
+describe('E2E Tests - Auto Approve', () => {
+    before(async () => {
         await waitForExtension();
     });
 
-    suite('切換自動核准', () => {
-        test('執行 toggleAutoApprove 指令不應該報錯', async () => {
+    describe('切換自動核准', () => {
+        it('執行 toggleAutoApprove 指令不應該報錯', async () => {
             try {
                 await vscode.commands.executeCommand('antigravity-plus.toggleAutoApprove');
                 assert.ok(true, '指令執行成功');

@@ -7,13 +7,13 @@ import * as vscode from 'vscode';
 
 import { waitForExtension } from './test-utils';
 
-suite('E2E Tests - Quota Monitor', () => {
-    suiteSetup(async () => {
+describe('E2E Tests - Quota Monitor', () => {
+    before(async () => {
         await waitForExtension();
     });
 
-    suite('刷新配額', () => {
-        test('執行 refreshQuota 指令不應該報錯', async () => {
+    describe('刷新配額', () => {
+        it('執行 refreshQuota 指令不應該報錯', async () => {
             try {
                 await vscode.commands.executeCommand('antigravity-plus.refreshQuota');
                 assert.ok(true, '指令執行成功');
@@ -23,8 +23,8 @@ suite('E2E Tests - Quota Monitor', () => {
         });
     });
 
-    suite('重置 Session', () => {
-        test('執行 resetSession 指令不應該報錯', async () => {
+    describe('重置 Session', () => {
+        it('執行 resetSession 指令不應該報錯', async () => {
             try {
                 await vscode.commands.executeCommand('antigravity-plus.resetSession');
                 assert.ok(true, '指令執行成功');

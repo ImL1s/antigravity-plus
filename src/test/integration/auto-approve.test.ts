@@ -37,12 +37,12 @@ class TestableAutoApproveController extends AutoApproveController {
     }
 }
 
-suite('Auto Approve Integration Tests', () => {
+describe('Auto Approve Integration Tests', () => {
     let controller: TestableAutoApproveController;
     let configManager: ConfigManager;
     let logger: Logger;
 
-    setup(() => {
+    beforeEach(() => {
         logger = new MockLogger() as unknown as Logger;
         configManager = new ConfigManager();
 
@@ -69,15 +69,15 @@ suite('Auto Approve Integration Tests', () => {
         controller = new TestableAutoApproveController(context, logger, configManager, mockCdp);
     });
 
-    teardown(() => {
+    afterEach(() => {
         if (controller) controller.dispose();
     });
 
-    test('Controller should initialize', () => {
+    it('Controller should initialize', () => {
         assert.ok(controller);
     });
 
-    test('Pesosz Strategy should invoke expected internal commands', async () => {
+    it('Pesosz Strategy should invoke expected internal commands', async () => {
         controller.enable();
         await (controller as any).poll();
 

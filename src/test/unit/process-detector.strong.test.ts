@@ -62,8 +62,10 @@ MY-PC,"C:\\Users\\User\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe" -
     });
 
     it('should detect Mac process from ps aux', async () => {
+        // ps aux format: USER PID %CPU %MEM VSZ RSS TT STAT STARTED TIME COMMAND (11 columns before command)
+        // Index:         0    1   2    3    4   5   6  7    8        9    10+
         mockExecOutput = `
-user             55555   0.0  0.0  123  456 ??  S    10:00AM   /Applications/Visual Studio Code.app/Contents/MacOS/Electron --remote-debugging-port=9333
+user             55555   0.0  0.0  12345  6789 ??  S    10:00AM   0:00.00 /Applications/Visual Studio Code.app/Contents/MacOS/Electron --remote-debugging-port=9333
 `;
         mockHttpResponses[9333] = { Browser: 'vscode', webSocketDebuggerUrl: 'ws://...' };
 
