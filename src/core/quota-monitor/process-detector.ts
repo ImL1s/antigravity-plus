@@ -52,7 +52,7 @@ export interface AntigravityProcess {
     csrfToken: string;
 }
 
-interface PlatformStrategy {
+export interface PlatformStrategy {
     getProcessListCommand(processName: string): string;
     parseProcessInfo(stdout: string): ProcessInfo[];
     getPortListCommand(pid: number): string;
@@ -65,7 +65,7 @@ interface PlatformStrategy {
 // Strategies
 // ==========================================
 
-class WindowsStrategy implements PlatformStrategy {
+export class WindowsStrategy implements PlatformStrategy {
     private isAntigravityProcess(commandLine: string): boolean {
         if (!commandLine.includes('--extension_server_port')) return false;
         if (!commandLine.includes('--csrf_token')) return false;
@@ -83,10 +83,10 @@ class WindowsStrategy implements PlatformStrategy {
     }
 
     parseProcessInfo(stdout: string): ProcessInfo[] {
+        let cleanStdout = stdout;
         try {
             const jsonStart = stdout.indexOf('[');
             const jsonObjectStart = stdout.indexOf('{');
-            let cleanStdout = stdout;
 
             if (jsonStart >= 0 || jsonObjectStart >= 0) {
                 const start = (jsonStart >= 0 && jsonObjectStart >= 0)
@@ -128,6 +128,8 @@ class WindowsStrategy implements PlatformStrategy {
             }
             return candidates;
         } catch (e) {
+            console.error('JSON Parse Error:', e);
+            console.log('Attempted to parse:', cleanStdout ? cleanStdout.trim() : 'null');
             return [];
         }
     }
@@ -148,7 +150,7 @@ class WindowsStrategy implements PlatformStrategy {
     }
 }
 
-class UnixStrategy implements PlatformStrategy {
+export class UnixStrategy implements PlatformStrategy {
     private platform: string;
     private availablePortCommand: 'lsof' | 'ss' | 'netstat' | null = null;
 
@@ -202,6 +204,8 @@ class UnixStrategy implements PlatformStrategy {
                     extensionPort: portMatch ? parseInt(portMatch[1], 10) : 0,
                     csrfToken: tokenMatch[1]
                 });
+            } else {
+                // console.log('DEBUG: Rejecting', cmd, tokenMatch, this.isAntigravityProcess(cmd));
             }
         }
         return candidates;

@@ -68,7 +68,7 @@ export class StatusBarManager implements vscode.Disposable {
             vscode.StatusBarAlignment.Right,
             198
         );
-        this.settingsItem.text = `$(gear) Antigravity`;
+        this.settingsItem.text = `$(gear) Antigravity+`;
         this.settingsItem.tooltip = t('statusBar.settings.tooltip') || 'Open Antigravity Plus Settings';
         this.settingsItem.command = 'antigravity-plus.openDashboard';
 
