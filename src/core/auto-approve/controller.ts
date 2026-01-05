@@ -251,7 +251,14 @@ export class AutoApproveController implements vscode.Disposable {
         this.setupAutoApproveConfig();
 
         // Refresh polling interval
-        this.startPolling();
+        if (this.enabled) {
+            this.startPolling();
+        } else {
+            if (this.intervalId) {
+                clearInterval(this.intervalId);
+                this.intervalId = null;
+            }
+        }
 
         this.logger.info('AutoApproveController 設定已更新');
     }
