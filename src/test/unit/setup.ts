@@ -2,14 +2,12 @@
 /**
  * Global Test Setup for Unit Tests
  * 
- * This file is required by Mocha before running any tests.
- * It installs the VS Code mock using robust method compatible with Node 20/22+.
+ * This file provides the mock VS Code API.
+ * It is consumed by the fake 'vscode' package created in node_modules.
  */
 
-const Module = require('module');
-
 // Mock VS Code API
-const mockVScodeApi = {
+export const mockVScodeApi = {
     window: {
         createStatusBarItem: () => ({
             text: '',
@@ -26,6 +24,7 @@ const mockVScodeApi = {
         showWarningMessage: () => Promise.resolve(),
         visibleTextEditors: [],
         activeTextEditor: undefined,
+        onDidChangeActiveTextEditor: () => ({ dispose: () => { } }),
     },
     workspace: {
         getConfiguration: () => ({
@@ -53,7 +52,7 @@ const mockVScodeApi = {
     Uri: {
         file: (p: string) => ({ fsPath: p, scheme: 'file', toString: () => p }),
         parse: (p: string) => ({ fsPath: p, scheme: 'file', toString: () => p }),
-        joinPath: () => ({ fsPath: 'joined' })
+        joinPath: (...args: any[]) => ({ fsPath: args.join('/') })
     },
     Range: class { },
     Position: class { },
@@ -78,25 +77,4 @@ const mockVScodeApi = {
     }
 };
 
-// Install the mock directly into require cache
-// This is the most reliable method across Node versions for non-existent modules
-const originalLoad = (Module as any)._load;
-(Module as any)._load = function (...args: any[]) {
-    const request = args[0];
-    if (request === 'vscode') {
-        return mockVScodeApi;
-    }
-    return originalLoad.apply(this, args);
-};
-
-// Also hook _resolveFilename to prevent "MODULE_NOT_FOUND" before _load is called
-const originalResolveFilename = (Module as any)._resolveFilename;
-(Module as any)._resolveFilename = function (...args: any[]) {
-    const request = args[0];
-    if (request === 'vscode') {
-        return 'vscode'; // Return dummy path, _load will intercept it
-    }
-    return originalResolveFilename.apply(this, args);
-};
-
-console.log('✅ VS Code Mock installed via setup.ts');
+console.log('✅ VS Code Mock Provider initialized');
