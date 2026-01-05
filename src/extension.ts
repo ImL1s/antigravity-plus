@@ -106,6 +106,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     }
 
                     autoApproveController?.updateConfig();
+
+                    // Sync state to Dashboard
+                    if (DashboardPanel.currentPanel && autoApproveController) {
+                        DashboardPanel.currentPanel.updateAutoApproveState(autoApproveController.isEnabled());
+                    }
+
                     quotaMonitorController?.updateConfig();
                     statusBarManager?.updateConfig();
                 }

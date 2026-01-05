@@ -1,242 +1,370 @@
 /**
- * 進程偵測器
+ * 進程偵測器 (Process Detector)
  * 
- * 參考 AntigravityQuota 的實作
- * 
- * 跨平台偵測 Antigravity 進程並提取連接資訊
+ * 基於 Antigravity Cockpit 的 ProcessHunter 和 Strategies 實作
+ * 提供跨平台的 Antigravity Language Server 偵測與連接資訊提取
  */
 
-import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as http from 'http';
+import * as https from 'https';
+import * as os from 'os';
 import { Logger } from '../../utils/logger';
 
 const execAsync = promisify(exec);
 
-export interface AntigravityProcess {
+// ==========================================
+// Constants
+// ==========================================
+
+const TIMING = {
+    PROCESS_CMD_TIMEOUT_MS: 5000,
+    PROCESS_SCAN_RETRY_MS: 1000
+};
+
+const PROCESS_NAMES = {
+    windows: 'language_server_windows_x64.exe',
+    darwin_arm: 'language_server_darwin_arm64',
+    darwin_x64: 'language_server_darwin_x64',
+    linux: 'language_server_linux_x64'
+};
+
+const API_ENDPOINTS = {
+    GET_UNLEASH_DATA: '/exa.language_server_pb.LanguageServerService/GetUnleashData'
+};
+
+// ==========================================
+// Types
+// ==========================================
+
+export interface ProcessInfo {
     pid: number;
-    endpoint: string;
-    authToken?: string;
+    ppid?: number;
+    extensionPort: number;
+    csrfToken: string;
 }
 
-export type CommandExecutor = (command: string, options?: any) => Promise<{ stdout: string, stderr: string }>;
+export interface AntigravityProcess {
+    pid: number;
+    extensionPort: number;
+    connectPort: number;
+    csrfToken: string;
+}
+
+interface PlatformStrategy {
+    getProcessListCommand(processName: string): string;
+    parseProcessInfo(stdout: string): ProcessInfo[];
+    getPortListCommand(pid: number): string;
+    parseListeningPorts(stdout: string): number[];
+    ensurePortCommandAvailable?(): Promise<void>;
+    getProcessByKeywordCommand?(): string;
+}
+
+// ==========================================
+// Strategies
+// ==========================================
+
+class WindowsStrategy implements PlatformStrategy {
+    private isAntigravityProcess(commandLine: string): boolean {
+        if (!commandLine.includes('--extension_server_port')) return false;
+        if (!commandLine.includes('--csrf_token')) return false;
+        return /--app_data_dir\s+antigravity\b/i.test(commandLine);
+    }
+
+    getProcessListCommand(processName: string): string {
+        const utf8Header = '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ';
+        return `chcp 65001 >nul && powershell -NoProfile -Command "${utf8Header}Get-CimInstance Win32_Process -Filter 'name=''${processName}''' | Select-Object ProcessId,CommandLine | ConvertTo-Json"`;
+    }
+
+    getProcessByKeywordCommand(): string {
+        const utf8Header = '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ';
+        return `chcp 65001 >nul && powershell -NoProfile -Command "${utf8Header}Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'csrf_token' } | Select-Object ProcessId,Name,CommandLine | ConvertTo-Json"`;
+    }
+
+    parseProcessInfo(stdout: string): ProcessInfo[] {
+        try {
+            const jsonStart = stdout.indexOf('[');
+            const jsonObjectStart = stdout.indexOf('{');
+            let cleanStdout = stdout;
+
+            if (jsonStart >= 0 || jsonObjectStart >= 0) {
+                const start = (jsonStart >= 0 && jsonObjectStart >= 0)
+                    ? Math.min(jsonStart, jsonObjectStart)
+                    : Math.max(jsonStart, jsonObjectStart);
+                cleanStdout = stdout.substring(start);
+            }
+
+            let data = JSON.parse(cleanStdout.trim());
+            if (!Array.isArray(data)) {
+                data = [data];
+            }
+
+            const candidates: ProcessInfo[] = [];
+
+            for (const item of data) {
+                const commandLine = item.CommandLine || '';
+                // Note: Relaxed check for keyword search vs process name search
+                // But for safety, we check basics. 
+                // However, existing strategy strict check `isAntigravityProcess` might filter out valid ones if args changed.
+                // But let's stick to the reference strategy.
+                if (!commandLine || !this.isAntigravityProcess(commandLine)) {
+                    continue;
+                }
+
+                const pid = item.ProcessId;
+                if (!pid) continue;
+
+                const portMatch = commandLine.match(/--extension_server_port[=\s]+(\d+)/);
+                const tokenMatch = commandLine.match(/--csrf_token[=\s]+([a-f0-9-]+)/i);
+
+                if (portMatch && tokenMatch) {
+                    candidates.push({
+                        pid,
+                        extensionPort: parseInt(portMatch[1], 10),
+                        csrfToken: tokenMatch[1]
+                    });
+                }
+            }
+            return candidates;
+        } catch (e) {
+            return [];
+        }
+    }
+
+    getPortListCommand(pid: number): string {
+        return `chcp 65001 >nul && netstat -ano | findstr "${pid}" | findstr "LISTENING"`;
+    }
+
+    parseListeningPorts(stdout: string): number[] {
+        const portRegex = /(?:127\.0\.0\.1|0\.0\.0\.0|\[::1?\]):(\d+)\s+\S+\s+LISTENING/gi;
+        const ports: number[] = [];
+        let match;
+        while ((match = portRegex.exec(stdout)) !== null) {
+            const port = parseInt(match[1], 10);
+            if (!ports.includes(port)) ports.push(port);
+        }
+        return ports.sort((a, b) => a - b);
+    }
+}
+
+class UnixStrategy implements PlatformStrategy {
+    private platform: string;
+    private availablePortCommand: 'lsof' | 'ss' | 'netstat' | null = null;
+
+    constructor(platform: string) {
+        this.platform = platform;
+    }
+
+    async ensurePortCommandAvailable(): Promise<void> {
+        if (this.availablePortCommand) return;
+        const commands = ['lsof', 'ss', 'netstat'];
+        for (const cmd of commands) {
+            try {
+                await execAsync(`which ${cmd}`);
+                this.availablePortCommand = cmd as any;
+                return;
+            } catch { }
+        }
+    }
+
+    private isAntigravityProcess(commandLine: string): boolean {
+        if (!commandLine.includes('--extension_server_port')) return false;
+        if (!commandLine.includes('--csrf_token')) return false;
+        return /--app_data_dir\s+antigravity\b/i.test(commandLine);
+    }
+
+    getProcessListCommand(processName: string): string {
+        return `ps -ww -eo pid,ppid,args | grep "${processName}" | grep -v grep`;
+    }
+
+    parseProcessInfo(stdout: string): ProcessInfo[] {
+        const lines = stdout.split('\n').filter(line => line.trim());
+        const candidates: ProcessInfo[] = [];
+
+        for (const line of lines) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length < 3) continue;
+
+            const pid = parseInt(parts[0], 10);
+            const ppid = parseInt(parts[1], 10);
+            const cmd = parts.slice(2).join(' ');
+
+            if (isNaN(pid) || isNaN(ppid)) continue;
+
+            const portMatch = cmd.match(/--extension_server_port[=\s]+(\d+)/);
+            const tokenMatch = cmd.match(/--csrf_token[=\s]+([a-zA-Z0-9-]+)/i);
+
+            if (tokenMatch && this.isAntigravityProcess(cmd)) {
+                candidates.push({
+                    pid,
+                    ppid,
+                    extensionPort: portMatch ? parseInt(portMatch[1], 10) : 0,
+                    csrfToken: tokenMatch[1]
+                });
+            }
+        }
+        return candidates;
+    }
+
+    getPortListCommand(pid: number): string {
+        if (this.platform === 'darwin') {
+            return `lsof -nP -a -iTCP -sTCP:LISTEN -p ${pid} 2>/dev/null | grep -E "^\\S+\\s+${pid}\\s"`;
+        }
+
+        switch (this.availablePortCommand) {
+            case 'lsof': return `lsof -nP -a -iTCP -sTCP:LISTEN -p ${pid} 2>/dev/null | grep -E "^\\S+\\s+${pid}\\s"`;
+            case 'ss': return `ss -tlnp 2>/dev/null | grep "pid=${pid},"`;
+            case 'netstat': return `netstat -tulpn 2>/dev/null | grep ${pid}`;
+            default: return `ss -tlnp 2>/dev/null | grep "pid=${pid},"`;
+        }
+    }
+
+    parseListeningPorts(stdout: string): number[] {
+        const ports: number[] = [];
+        if (this.platform === 'darwin') {
+            const lines = stdout.split('\n');
+            for (const line of lines) {
+                if (!line.includes('(LISTEN)')) continue;
+                const match = line.match(/[*\d.:]+:(\d+)\s+\(LISTEN\)/);
+                if (match) {
+                    const port = parseInt(match[1], 10);
+                    if (!ports.includes(port)) ports.push(port);
+                }
+            }
+        } else {
+            const ssRegex = /LISTEN\s+\d+\s+\d+\s+(?:\*|[\d.]+|\[[\da-f:]*\]):(\d+)/gi;
+            let match;
+            while ((match = ssRegex.exec(stdout)) !== null) {
+                const port = parseInt(match[1], 10);
+                if (!ports.includes(port)) ports.push(port);
+            }
+        }
+        return ports.sort((a, b) => a - b);
+    }
+}
+
+// ==========================================
+// ProcessDetector (Facade)
+// ==========================================
 
 export class ProcessDetector {
-    private readonly COMMON_PORTS = [9222, 9333, 9444, 3000, 3001, 8080, 8888];
-    private executor: CommandExecutor;
+    private strategy: PlatformStrategy;
+    private targetProcess: string;
 
-    constructor(private logger: Logger, executor?: CommandExecutor, private httpClient?: any) {
-        this.executor = executor || execAsync;
-        this.httpClient = httpClient || http;
-    }
-
-    /**
-     * 偵測 Antigravity 進程
-     */
-    public async detect(): Promise<AntigravityProcess | null> {
+    constructor(private logger: Logger) {
         const platform = os.platform();
+        const arch = os.arch();
 
-        this.logger.debug(`開始偵測 Antigravity 進程 (${platform})`);
-
-        try {
-            switch (platform) {
-                case 'win32':
-                    return await this.detectWindows();
-                case 'darwin':
-                    return await this.detectMac();
-                case 'linux':
-                    return await this.detectLinux();
-                default:
-                    this.logger.warn(`不支援的平台: ${platform}`);
-                    return null;
-            }
-        } catch (error) {
-            this.logger.error(`進程偵測失敗: ${error}`);
-            return null;
+        if (platform === 'win32') {
+            this.strategy = new WindowsStrategy();
+            this.targetProcess = PROCESS_NAMES.windows;
+        } else if (platform === 'darwin') {
+            this.strategy = new UnixStrategy('darwin');
+            this.targetProcess = arch === 'arm64' ? PROCESS_NAMES.darwin_arm : PROCESS_NAMES.darwin_x64;
+        } else {
+            this.strategy = new UnixStrategy('linux');
+            this.targetProcess = PROCESS_NAMES.linux;
         }
     }
 
-    /**
-     * Windows 平台偵測
-     * 模擬 competitor-cockpit/hunter.ts 的 WMI 查詢策略
-     */
-    private async detectWindows(): Promise<AntigravityProcess | null> {
-        try {
-            // 擴大搜尋範圍，包含 code.exe, electron.exe 和潛在的 antigravity process
-            const { stdout } = await this.executor(
-                `wmic process where "name like '%code%' or name like '%electron%' or name like '%antigravity%'" get processid,commandline /format:csv`,
-                { timeout: 15000 }
-            );
+    public async detect(): Promise<AntigravityProcess | null> {
+        // 1. Scan by process name
+        let result = await this.scanByProcessName();
+        if (result) return result;
 
-            const lines = stdout.trim().split('\n');
-            const candidates: { pid: number, port: number }[] = [];
-
-            for (const line of lines) {
-                if (!line.trim() || line.startsWith('Node,')) continue;
-
-                // CSV 格式通常是: Node,CommandLine,ProcessId
-                // 部分系統可能是: Node,ProcessId,CommandLine
-                const parts = line.split(',');
-                if (parts.length < 2) continue;
-
-                // 嘗試找尋 Command Line 部分 (通常比較長)
-                const cmdLine = parts.find(p => p.includes('--remote-debugging-port')) || '';
-                const pidStr = parts[parts.length - 1]; // PID 通常在最後
-
-                if (cmdLine) {
-                    const portMatch = cmdLine.match(/--remote-debugging-port=(\d+)/);
-                    if (portMatch) {
-                        const port = parseInt(portMatch[1]);
-                        const pid = parseInt(pidStr) || 0;
-                        candidates.push({ pid, port });
-                    }
-                }
-            }
-
-            this.logger.debug(`Windows 掃描發現 ${candidates.length} 個候選進程`);
-
-            // 驗證所有候選者
-            for (const cand of candidates) {
-                const process = await this.testPort(cand.port, cand.pid);
-                if (process) {
-                    this.logger.info(`驗證成功: PID ${cand.pid} Port ${cand.port}`);
-                    return process;
-                }
-            }
-        } catch (error) {
-            this.logger.debug(`Windows wmic 偵測失敗: ${error}`);
-        }
-
-        return this.tryCommonPorts();
-    }
-
-    /**
-     * macOS 平台偵測
-     * 模擬 competitor-cockpit/hunter.ts 的 ps aux 策略
-     */
-    private async detectMac(): Promise<AntigravityProcess | null> {
-        try {
-            // 使用 grep 排除 grep 自身，並查找包含 debugging-port 的進程
-            const { stdout } = await this.executor(
-                `ps aux | grep "\\--remote-debugging-port=" | grep -v grep`,
-                { timeout: 15000 }
-            );
-
-            const lines = stdout.trim().split('\n').filter(Boolean);
-
-            for (const line of lines) {
-                // ps aux 輸出格式: USER PID %CPU %MEM VSZ RSS TT STAT STARTED TIME COMMAND
-                // 我們主要關心 PID 和 COMMAND
-                const parts = line.trim().split(/\s+/);
-                this.logger.debug(`[Mac] Line parts: ${JSON.stringify(parts)}`); // DEBUG
-                const pid = parseInt(parts[1]);
-                this.logger.debug(`[Mac] Parsed PID: ${pid}`); // DEBUG
-                this.logger.debug(`[Mac] Parsed PID: ${pid}`); // DEBUG
-                // const cmdLine = parts.slice(10).join(' '); // 假設 Command 從第 11 欄開始
-
-                const portMatch = line.match(/--remote-debugging-port=(\d+)/);
-                if (portMatch) {
-                    const port = parseInt(portMatch[1]);
-                    const process = await this.testPort(port, pid);
-                    if (process) return process;
-                }
-            }
-        } catch (error) {
-            this.logger.debug(`macOS 偵測失敗: ${error}`);
-        }
-
-        return this.tryCommonPorts();
-    }
-
-    /**
-     * Linux 平台偵測
-     */
-    private async detectLinux(): Promise<AntigravityProcess | null> {
-        try {
-            const { stdout } = await this.executor(
-                `ps -ef | grep "\\--remote-debugging-port=" | grep -v grep`,
-                { timeout: 15000 }
-            );
-
-            const lines = stdout.trim().split('\n').filter(Boolean);
-
-            for (const line of lines) {
-                const parts = line.trim().split(/\s+/);
-                const pid = parseInt(parts[1]);
-
-                const portMatch = line.match(/--remote-debugging-port=(\d+)/);
-                if (portMatch) {
-                    const port = parseInt(portMatch[1]);
-                    const process = await this.testPort(port, pid);
-                    if (process) return process;
-                }
-            }
-        } catch (error) {
-            this.logger.debug(`Linux 偵測失敗: ${error}`);
-        }
-
-        return this.tryCommonPorts();
-    }
-
-    /**
-     * 嘗試常見端口
-     */
-    private async tryCommonPorts(): Promise<AntigravityProcess | null> {
-        this.logger.debug('嘗試常見端口...');
-
-        for (const port of this.COMMON_PORTS) {
-            const process = await this.testPort(port);
-            if (process) {
-                this.logger.info(`在端口 ${port} 找到 Antigravity`);
-                return process;
-            }
+        // 2. Scan by keyword (Windows only)
+        if (os.platform() === 'win32') {
+            result = await this.scanByKeyword();
+            if (result) return result;
         }
 
         return null;
     }
 
-    /**
-     * 測試端口是否為 Antigravity 服務
-     */
-    private async testPort(port: number, pid?: number): Promise<AntigravityProcess | null> {
-        return new Promise((resolve) => {
-            const options = {
-                hostname: 'localhost',
-                port: port,
-                path: '/json/version',
-                method: 'GET',
-                timeout: 2000
+    private async scanByProcessName(): Promise<AntigravityProcess | null> {
+        try {
+            const cmd = this.strategy.getProcessListCommand(this.targetProcess);
+            const { stdout } = await execAsync(cmd, { timeout: TIMING.PROCESS_CMD_TIMEOUT_MS });
+
+            if (!stdout || !stdout.trim()) return null;
+
+            const candidates = this.strategy.parseProcessInfo(stdout);
+            for (const info of candidates) {
+                const result = await this.verifyAndConnect(info);
+                if (result) return result;
+            }
+        } catch (error) {
+            this.logger.debug(`Scan by process name failed: ${error}`);
+        }
+        return null;
+    }
+
+    private async scanByKeyword(): Promise<AntigravityProcess | null> {
+        if (!this.strategy.getProcessByKeywordCommand) return null;
+
+        try {
+            const cmd = this.strategy.getProcessByKeywordCommand();
+            const { stdout } = await execAsync(cmd, { timeout: TIMING.PROCESS_CMD_TIMEOUT_MS });
+
+            const candidates = this.strategy.parseProcessInfo(stdout);
+            for (const info of candidates) {
+                const result = await this.verifyAndConnect(info);
+                if (result) return result;
+            }
+        } catch (error) {
+            this.logger.debug(`Scan by keyword failed: ${error}`);
+        }
+        return null;
+    }
+
+    private async verifyAndConnect(info: ProcessInfo): Promise<AntigravityProcess | null> {
+        try {
+            if (this.strategy.ensurePortCommandAvailable) {
+                await this.strategy.ensurePortCommandAvailable();
+            }
+
+            const cmd = this.strategy.getPortListCommand(info.pid);
+            const { stdout } = await execAsync(cmd);
+            const ports = this.strategy.parseListeningPorts(stdout);
+
+            for (const port of ports) {
+                if (await this.pingPort(port, info.csrfToken)) {
+                    return {
+                        pid: info.pid,
+                        extensionPort: info.extensionPort,
+                        connectPort: port,
+                        csrfToken: info.csrfToken
+                    };
+                }
+            }
+        } catch (error) {
+            this.logger.debug(`Verification failed for PID ${info.pid}: ${error}`);
+        }
+        return null;
+    }
+
+    private pingPort(port: number, token: string): Promise<boolean> {
+        return new Promise(resolve => {
+            const options: https.RequestOptions = {
+                hostname: '127.0.0.1',
+                port,
+                path: API_ENDPOINTS.GET_UNLEASH_DATA,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Codeium-Csrf-Token': token,
+                    'Connect-Protocol-Version': '1',
+                },
+                rejectUnauthorized: false,
+                timeout: 3000,
+                agent: false,
             };
 
-            const req = this.httpClient.request(options, (res: any) => {
-                let data = '';
-                res.on('data', (chunk: string) => data += chunk);
-                res.on('end', () => {
-                    try {
-                        const json = JSON.parse(data);
-                        // 檢查是否為 Antigravity 或相容的服務
-                        if (json.Browser || json.webSocketDebuggerUrl) {
-                            resolve({
-                                pid: pid || 0,
-                                endpoint: `http://localhost:${port}/api`,
-                                authToken: json.webSocketDebuggerUrl
-                            });
-                            return;
-                        }
-                    } catch {
-                        // 忽略解析錯誤
-                    }
-                    resolve(null);
-                });
-            });
-
-            req.on('error', () => resolve(null));
-            req.on('timeout', () => {
-                req.destroy();
-                resolve(null);
-            });
-
+            const req = https.request(options, res => resolve(res.statusCode === 200));
+            req.on('error', () => resolve(false));
+            req.on('timeout', () => { req.destroy(); resolve(false); });
+            req.write(JSON.stringify({ wrapper_data: {} }));
             req.end();
         });
     }
