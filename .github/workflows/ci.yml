@@ -99,12 +99,18 @@ jobs:
         with:
           name: antigravity-plus-vsix
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Publish to Open VSX
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
-          if [ -n "$OVSX_PAT" ]; then
-            npx ovsx publish antigravity-plus.vsix -p $OVSX_PAT
-          else
+          if [ -z "$OVSX_PAT" ]; then
             echo "::warning::Skipping release: OVSX_PAT secret is not set."
+            exit 0
           fi
+          npm install -g ovsx
+          ovsx publish antigravity-plus.vsix -p "$OVSX_PAT"
