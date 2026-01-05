@@ -34,4 +34,16 @@ suite('E2E Tests - Dashboard', () => {
             }
         });
     });
+
+    suite('Context Optimizer', () => {
+        test('執行 optimizeContext 指令不應該報錯', async () => {
+            try {
+                await vscode.commands.executeCommand('antigravity-plus.optimizeContext');
+                await new Promise(resolve => setTimeout(resolve, 500));
+                assert.ok(true, 'Context Optimizer 執行成功');
+            } catch (error) {
+                assert.fail(`Context Optimizer 執行失敗: ${error}`);
+            }
+        });
+    });
 });
