@@ -32,7 +32,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2 libgbm1
+          npm install
 
       - name: Lint
         if: matrix.os == 'ubuntu-latest'
