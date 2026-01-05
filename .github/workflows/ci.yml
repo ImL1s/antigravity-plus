@@ -31,11 +31,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install System Libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2 libgbm1
-          npm install
+          sudo apt-get install -y libasound2 libgbm1 --no-install-recommends
+
+      - name: Install dependencies
+        run: npm install
 
       - name: Lint
         if: matrix.os == 'ubuntu-latest'
@@ -45,14 +47,15 @@ jobs:
         run: npm run compile
 
       - name: Run Unit Tests
-        run: xvfb-run npm run test:unit
-      - name: Debug - List Build Output on Failure
-        if: failure()
-        run: ls -R out/test/unit/
+        run: npm run test:unit
 
       - name: Run Smoke Tests
         if: matrix.os == 'ubuntu-latest'
         run: xvfb-run -a npm run test:smoke
+
+      - name: Debug - List Build Output on Failure
+        if: failure()
+        run: ls -R out/test/unit/
 
   package:
     name: Package VSIX
