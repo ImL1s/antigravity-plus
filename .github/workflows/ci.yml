@@ -67,10 +67,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install System Libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libnss3 libatk-bridge2.0-0 libgtk-3-0 libxss1 libasound2 libgbm1 --no-install-recommends
+
 
       - name: Install dependencies
         run: npm ci
