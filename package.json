@@ -60,6 +60,11 @@
         "command": "antigravity-plus.toggleAutoWakeup",
         "title": "%command.toggleAutoWakeup%",
         "category": "Antigravity Plus"
+      },
+      {
+        "command": "antigravity-plus.optimizeContext",
+        "title": "%command.optimizeContext%",
+        "category": "Antigravity Plus"
       }
     ],
     "configuration": {

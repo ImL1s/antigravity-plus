@@ -7,16 +7,24 @@
 
 import * as vscode from 'vscode';
 
+export interface AgentActivity {
+    timestamp: Date;
+    type: 'click' | 'blocked' | 'session' | 'wakeup' | 'optimization';
+    description: string;
+}
+
 export interface ImpactStats {
     clicksSaved: number;
     timesSavedMs: number;
     sessions: number;
     blocked: number;
     weekStart: Date;
+    activityLog?: AgentActivity[];
 }
 
 const STORAGE_KEY = 'antigravity-plus.impactStats';
 const MS_PER_CLICK = 2000; // 每次點擊節省約 2 秒
+const MAX_ACTIVITY_LOG = 50;
 
 export class ImpactTracker implements vscode.Disposable {
     private stats: ImpactStats;
@@ -29,11 +37,32 @@ export class ImpactTracker implements vscode.Disposable {
     }
 
     /**
+     * 記錄活動日誌
+     */
+    public logActivity(type: AgentActivity['type'], description: string): void {
+        if (!this.stats.activityLog) {
+            this.stats.activityLog = [];
+        }
+
+        this.stats.activityLog.unshift({
+            timestamp: new Date(),
+            type,
+            description
+        });
+
+        // 限制長度
+        if (this.stats.activityLog.length > MAX_ACTIVITY_LOG) {
+            this.stats.activityLog = this.stats.activityLog.slice(0, MAX_ACTIVITY_LOG);
+        }
+    }
+
+    /**
      * 記錄一次自動點擊
      */
     public recordClick(): void {
         this.stats.clicksSaved++;
         this.stats.timesSavedMs += MS_PER_CLICK;
+        this.logActivity('click', '自動核准了一個 Agent 請求');
         this.saveStats();
     }
 
@@ -43,6 +72,7 @@ export class ImpactTracker implements vscode.Disposable {
     public recordClicks(count: number): void {
         this.stats.clicksSaved += count;
         this.stats.timesSavedMs += count * MS_PER_CLICK;
+        this.logActivity('click', `自動核准了 ${count} 個 Agent 請求`);
         this.saveStats();
     }
 
@@ -51,6 +81,7 @@ export class ImpactTracker implements vscode.Disposable {
      */
     public recordBlocked(): void {
         this.stats.blocked++;
+        this.logActivity('blocked', '阻擋了一個潛在的危險指令');
         this.saveStats();
     }
 
@@ -62,6 +93,7 @@ export class ImpactTracker implements vscode.Disposable {
         this.currentSessionId = sessionId;
         this.sessionStartTime = new Date();
         this.stats.sessions++;
+        this.logActivity('session', '開始新的開發 Session');
         this.saveStats();
         return sessionId;
     }

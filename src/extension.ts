@@ -18,6 +18,7 @@ import { QuotaMonitorController } from './core/quota-monitor/controller';
 import { ImpactTracker } from './core/auto-approve/impact-tracker';
 import { PerformanceModeController } from './core/auto-approve/performance-mode';
 import { AutoWakeupController } from './core/auto-wakeup/controller';
+import { ContextOptimizerController } from './core/context-optimizer/controller';
 import { StatusBarManager } from './ui/status-bar';
 import { DashboardPanel } from './ui/dashboard';
 import { Logger } from './utils/logger';
@@ -30,6 +31,7 @@ let quotaMonitorController: QuotaMonitorController | undefined;
 let impactTracker: ImpactTracker | undefined;
 let performanceMode: PerformanceModeController | undefined;
 let wakeupController: AutoWakeupController | undefined;
+let contextOptimizer: ContextOptimizerController | undefined;
 let statusBarManager: StatusBarManager | undefined;
 let logger: Logger | undefined;
 let configManager: ConfigManager | undefined;
@@ -62,6 +64,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         console.log('[DEBUG] Antigravity Plus: AutoApproveController initialized');
         quotaMonitorController = new QuotaMonitorController(context, logger, configManager, statusBarManager);
         console.log('[DEBUG] Antigravity Plus: QuotaMonitorController initialized');
+
+        // 初始化 Context Optimizer
+        contextOptimizer = new ContextOptimizerController(context, logger, configManager);
+        console.log('[DEBUG] Antigravity Plus: ContextOptimizerController initialized');
 
         // 4. 初始化自動喚醒控制器
         // Inject StatusBarManager for UI updates
@@ -143,8 +149,19 @@ function registerCommands(context: vscode.ExtensionContext): void {
                 impactTracker!,
                 performanceMode!,
                 wakeupController!,
+                contextOptimizer!,
                 autoApproveController?.isEnabled() ?? false
             );
+        })
+    );
+
+    // 優化 Context
+    context.subscriptions.push(
+        vscode.commands.registerCommand('antigravity-plus.optimizeContext', async () => {
+            const suggestions = await contextOptimizer?.analyzeContext();
+            if (suggestions && suggestions.length > 0) {
+                await contextOptimizer?.applyOptimization(suggestions);
+            }
         })
     );
 

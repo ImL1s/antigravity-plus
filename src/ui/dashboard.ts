@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { ImpactTracker, ImpactStats } from '../core/auto-approve/impact-tracker';
 import { PerformanceModeController } from '../core/auto-approve/performance-mode';
 import { AutoWakeupController, WakeupConfig } from '../core/auto-wakeup/controller';
-
+import { ContextOptimizerController, ContextSuggestion } from '../core/context-optimizer/controller';
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;
@@ -16,6 +16,7 @@ export class DashboardPanel {
 
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
+    private _suggestions: ContextSuggestion[] = [];
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -23,6 +24,7 @@ export class DashboardPanel {
         private impactTracker: ImpactTracker,
         private performanceMode: PerformanceModeController,
         private wakeupController: AutoWakeupController,
+        private contextOptimizer: ContextOptimizerController,
         private isAutoApproveEnabled: boolean
     ) {
         this._panel = panel;
@@ -42,6 +44,7 @@ export class DashboardPanel {
         impactTracker: ImpactTracker,
         performanceMode: PerformanceModeController,
         wakeupController: AutoWakeupController,
+        contextOptimizer: ContextOptimizerController,
         isAutoApproveEnabled: boolean
     ): DashboardPanel {
         const column = vscode.window.activeTextEditor
@@ -70,6 +73,7 @@ export class DashboardPanel {
             impactTracker,
             performanceMode,
             wakeupController,
+            contextOptimizer,
             isAutoApproveEnabled
         );
 
@@ -111,6 +115,17 @@ export class DashboardPanel {
                 this._update();
                 break;
             case 'refresh':
+                this._update();
+                break;
+            case 'analyzeContext':
+                this.contextOptimizer.analyzeContext().then(suggestions => {
+                    this._suggestions = suggestions;
+                    this._update();
+                });
+                break;
+            case 'applyOptimization':
+                this.contextOptimizer.applyOptimization(this._suggestions);
+                this.impactTracker.logActivity('optimization', '執行了 Context 優化建議');
                 this._update();
                 break;
         }
@@ -373,6 +388,57 @@ export class DashboardPanel {
             color: #ef4444;
         }
         
+        .timeline {
+            margin-top: 12px;
+            border-left: 2px solid rgba(102, 126, 234, 0.3);
+            padding-left: 16px;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 12px;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -21px;
+            top: 4px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+        }
+        
+        .timeline-time {
+            font-size: 10px;
+            color: #888;
+        }
+        
+        .timeline-content {
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
+        .suggestion-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .suggestion-action {
+            font-weight: bold;
+            color: #4ade80;
+        }
+
+        .suggestion-action.unpin {
+            color: #ef4444;
+        }
+        
         .reset-badge {
             font-size: 11px;
             color: #888;
@@ -433,6 +499,42 @@ export class DashboardPanel {
             <input type="range" class="slider" min="0" max="100" value="${sliderValue}" 
                    oninput="updatePerformance(this.value)">
             <div class="current-value">${perfLevel} (${perfInterval})</div>
+        </div>
+    </div>
+
+    <!-- Context Optimizer -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">🔍 Context Optimizer</span>
+        </div>
+        <div id="suggestions-container">
+            ${this._suggestions.length > 0 ?
+                this._suggestions.slice(0, 5).map(s => `
+                    <div class="suggestion-item">
+                        <span>${s.file.fsPath.split(/[\\/]/).pop()}</span>
+                        <span class="suggestion-action ${s.action}">${s.action.toUpperCase()}</span>
+                    </div>
+                `).join('') : '<p style="font-size:12px;color:#888;">尚未分析</p>'
+            }
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="analyzeContext()">Analyze Now</button>
+            ${this._suggestions.length > 0 ? '<button class="btn btn-secondary" onclick="applyOptimization()">Apply</button>' : ''}
+        </div>
+    </div>
+
+    <!-- Activity Timeline -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">🕒 Activity Timeline</span>
+        </div>
+        <div class="timeline">
+            ${(stats.activityLog || []).slice(0, 5).map(log => `
+                <div class="timeline-item">
+                    <div class="timeline-time">${new Date(log.timestamp).toLocaleTimeString()}</div>
+                    <div class="timeline-content">${log.description}</div>
+                </div>
+            `).join('')}
         </div>
     </div>
 
@@ -497,6 +599,14 @@ export class DashboardPanel {
         
         function showHistory() {
             // TODO: 展開歷史列表
+        }
+
+        function analyzeContext() {
+            vscode.postMessage({ command: 'analyzeContext' });
+        }
+
+        function applyOptimization() {
+            vscode.postMessage({ command: 'applyOptimization' });
         }
     </script>
 </body>

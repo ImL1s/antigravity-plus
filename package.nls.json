@@ -8,6 +8,7 @@
     "command.showLogs": "Show Operation Logs",
     "command.showQuickPick": "Show Quota Quick Pick",
     "command.toggleAutoWakeup": "Toggle Auto Wake-up (Background)",
+    "command.optimizeContext": "Optimize Agent Context (Token Saver)",
     "config.title": "Antigravity Plus",
     "config.autoApprove.fileOperations.description": "Auto-accept file edit operations",
     "config.autoApprove.terminalCommands.description": "Auto-execute terminal commands",
