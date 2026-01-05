@@ -18,7 +18,10 @@ minimal-test.log
 smoke-test.log
 test-all.log
 
-!out/
+out/
+esbuild.js
+
+!dist/
 !resources/
 !resources/icons/
 !package.json
