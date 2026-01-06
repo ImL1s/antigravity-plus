@@ -9,7 +9,7 @@ import { ImpactTracker, ImpactStats } from '../core/auto-approve/impact-tracker'
 import { PerformanceModeController } from '../core/auto-approve/performance-mode';
 import { AutoWakeupController, WakeupConfig } from '../core/auto-wakeup/controller';
 import { ContextOptimizerController, ContextSuggestion } from '../core/context-optimizer/controller';
-import { QuotaMonitorController } from '../core/quota-monitor/controller';
+import { QuotaMonitorController, QuotaData } from '../core/quota-monitor/controller';
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;
@@ -39,6 +39,11 @@ export class DashboardPanel {
             null,
             this._disposables
         );
+
+        // 訂閱配額更新，實現後端推送（解決 Webview 背景時 setInterval 暫停的問題）
+        this.quotaController.onQuotaUpdate((data) => {
+            this.updateQuotaData(data);
+        });
     }
 
     public static createOrShow(
@@ -88,6 +93,16 @@ export class DashboardPanel {
     public updateAutoApproveState(enabled: boolean): void {
         this.isAutoApproveEnabled = enabled;
         this._update();
+    }
+
+    /**
+     * 從後端推送配額更新到 Webview
+     * 用於解決 Webview 背景時 setInterval 暫停的問題
+     */
+    public updateQuotaData(data: QuotaData): void {
+        if (this._panel.visible) {
+            this._panel.webview.postMessage({ command: 'updateQuota', data });
+        }
     }
 
     private _update(): void {

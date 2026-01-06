@@ -69,6 +69,7 @@ export class QuotaMonitorController implements vscode.Disposable {
     private currentSession: UsageSession;
     private quotaData: QuotaData | undefined;
     private disposables: vscode.Disposable[] = [];
+    private quotaUpdateCallback: ((data: QuotaData) => void) | undefined;
 
     constructor(
         private context: vscode.ExtensionContext,
@@ -144,6 +145,10 @@ export class QuotaMonitorController implements vscode.Disposable {
             if (data) {
                 this.quotaData = data;
                 this.statusBarManager.updateQuota(data);
+                // 推送更新到 Dashboard (如果有訂閱)
+                if (this.quotaUpdateCallback) {
+                    this.quotaUpdateCallback(data);
+                }
                 this.logger.debug('配額已更新');
             }
         } catch (error) {
@@ -156,6 +161,14 @@ export class QuotaMonitorController implements vscode.Disposable {
      */
     public getQuotaData(): QuotaData | undefined {
         return this.quotaData;
+    }
+
+    /**
+     * 訂閱配額更新事件
+     * 用於 Dashboard 等 UI 元件接收即時更新
+     */
+    public onQuotaUpdate(callback: (data: QuotaData) => void): void {
+        this.quotaUpdateCallback = callback;
     }
 
     /**
