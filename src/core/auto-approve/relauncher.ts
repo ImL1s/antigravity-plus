@@ -188,7 +188,7 @@ if ($modified) { Write-Output "MODIFIED_SUCCESS" } else { Write-Output "NO_CHANG
 
                 cp.exec(`powershell -ExecutionPolicy Bypass -File "${tempFile}"`, (error, stdout, stderr) => {
                     // 清理暫存檔
-                    try { fs.unlinkSync(tempFile); } catch (e) { }
+                    try { fs.unlinkSync(tempFile); } catch { /* ignore cleanup errors */ }
 
                     if (error) {
                         this.logger.error(`[Relauncher] PowerShell error: ${error.message}`);
