@@ -92,27 +92,164 @@ export class Relauncher {
     /**
      * 修改啟動捷徑
      */
+    /**
+     * 修改啟動捷徑
+     */
     private async modifyShortcut(): Promise<boolean> {
         try {
             if (this.platform === 'win32') {
                 return await this.modifyWindowsShortcut();
             }
-            // macOS 和 Linux 實作保留為 TODO
             if (this.platform === 'darwin') {
-                // return await this.modifyMacOSShortcut();
-                this.logger.warn('[Relauncher] macOS shortcut modification not yet implemented.');
-                return false;
+                return await this.modifyMacOSShortcut();
             }
             if (this.platform === 'linux') {
-                // return await this.modifyLinuxShortcut();
-                this.logger.warn('[Relauncher] Linux shortcut modification not yet implemented.');
-                return false;
+                return await this.modifyLinuxShortcut();
             }
         } catch (e) {
             const error = e as Error;
             this.logger.error(`[Relauncher] Modification error: ${error.message}`);
         }
         return false;
+    }
+
+    /**
+     * macOS: 暫不支援永久修改，僅提示
+     */
+    private async modifyMacOSShortcut(): Promise<boolean> {
+        // macOS App Signing 防止直接修改 Info.plist
+        // 我們將依賴 "Relaunch Now" 功能 (使用 open 命令帶參數)
+        // 這裡回傳 false 並不代表失敗，而是觸發手動/立即重啟流程
+        this.logger.info('[Relauncher] macOS permanent modification not supported automatically.');
+
+        const choice = await vscode.window.showInformationMessage(
+            'macOS 安全限制阻止自動修改捷徑。您可以選擇 "立即使用參數重啟" 來啟用此功能 (僅本次有效)。',
+            '立即重啟',
+            '了解'
+        );
+
+        if (choice === '立即重啟') {
+            await this.relaunch();
+            return true; // 視為已處理，雖然沒有永久修改
+        }
+
+        return false;
+    }
+
+    /**
+     * Linux: 修改 .desktop 檔案
+     */
+    private async modifyLinuxShortcut(): Promise<boolean> {
+        // const ideName = this.getIdeName(); // Unused in this scope
+        // 常見的 .desktop 檔案名稱
+        const candidates = [
+            'code.desktop',
+            'visual-studio-code.desktop',
+            'code-oss.desktop',
+            'cursor.desktop',
+            `${vscode.env.appName}.desktop`.toLowerCase().replace(/\s+/g, '-')
+        ];
+
+        const userDir = path.join(os.homedir(), '.local', 'share', 'applications');
+        const systemDirs = [
+            '/usr/share/applications',
+            '/var/lib/snapd/desktop/applications'
+        ];
+
+        // 確保用戶目錄存在
+        if (!fs.existsSync(userDir)) {
+            fs.mkdirSync(userDir, { recursive: true });
+        }
+
+        let targetFile = '';
+        let sourceFile = '';
+
+        // 1. 檢查用戶目錄是否已有檔案
+        for (const name of candidates) {
+            const p = path.join(userDir, name);
+            if (fs.existsSync(p)) {
+                targetFile = p;
+                sourceFile = p;
+                break;
+            }
+        }
+
+        // 2. 如果用戶目錄沒有，找系統目錄
+        if (!targetFile) {
+            for (const dir of systemDirs) {
+                for (const name of candidates) {
+                    const p = path.join(dir, name);
+                    if (fs.existsSync(p)) {
+                        sourceFile = p;
+                        targetFile = path.join(userDir, name); // 複製目標
+                        break;
+                    }
+                }
+                if (sourceFile) break;
+            }
+        }
+
+        if (!sourceFile) {
+            this.logger.error('[Relauncher] No suitable .desktop file found.');
+            return false;
+        }
+
+        try {
+            this.logger.info(`[Relauncher] Reading from ${sourceFile}`);
+            const content = fs.readFileSync(sourceFile, 'utf8');
+
+            // 修改 Exec 行
+            // 匹配 Exec=... 且不包含我們參數的行
+            const lines = content.split('\n');
+            let modified = false;
+            const newLines = lines.map(line => {
+                if (line.startsWith('Exec=') && !line.includes(CDP_FLAG)) {
+                    // 在 Exec=code %F 或類似結構中插入參數
+                    // 通常放在指令之後，參數之前
+                    // 簡單解法：直接 append 到 command 後面，但在 %F 等佔位符之前
+
+                    // 尋找命令結束位置 (通常是第一個空格，但路徑可能有空格)
+                    // 更安全的做法：直接加在 %F, %U, %f 等與參數相關的佔位符之前
+                    // 或者直接加在行尾 (有些實作可能會有問題，但通常可行)
+
+                    // 策略：如果有點位符，插在佔位符前；如果沒有，插在行尾
+                    const placeholders = ['%F', '%f', '%U', '%u'];
+                    let inserted = false;
+                    for (const ph of placeholders) {
+                        if (line.includes(ph)) {
+                            line = line.replace(ph, `${CDP_FLAG} ${ph}`);
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted) {
+                        line = line + ` ${CDP_FLAG}`;
+                    }
+                    modified = true;
+                    this.logger.info(`[Relauncher] Modified Exec line: ${line}`);
+                }
+                return line;
+            });
+
+            if (modified) {
+                fs.writeFileSync(targetFile, newLines.join('\n'), 'utf8');
+                this.logger.info(`[Relauncher] Written modified .desktop to ${targetFile}`);
+
+                // 更新 desktop database
+                cp.exec('update-desktop-database ' + userDir, (err) => {
+                    if (err) this.logger.warn(`[Relauncher] update-desktop-database failed: ${err.message}`);
+                });
+
+                return true;
+            }
+
+            this.logger.info('[Relauncher] .desktop file already contains the flag.');
+            return true; // 視為成功
+        } catch (e) {
+            const error = e as Error;
+            this.logger.error(`[Relauncher] Linux modification failed: ${error.message}`);
+            return false;
+        }
     }
 
     /**
@@ -159,22 +296,68 @@ if ($modified) { Write-Output "MODIFIED_SUCCESS" } else { Write-Output "NO_CHANG
 
         if (this.platform === 'win32') {
             const ideName = this.getIdeName();
-            // Windows 重啟指令
             const cmd = `timeout /t 2 /nobreak >nul & start "" "${ideName}" ${folders}`;
             const child = cp.spawn('cmd.exe', ['/c', cmd], {
                 detached: true,
                 stdio: 'ignore'
             });
             child.unref();
-        } else {
-            // 其他平台 TODO
-            this.logger.warn('[Relauncher] Relaunch not fully implemented for this platform.');
+        } else if (this.platform === 'darwin') {
+            // macOS: 使用 open -n -a "Application Name" --args ...
+            // const appPath = process.execPath; // Typically /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+            // 我們需要找到 .app bundle 路徑
+            // process.execPath: .../Visual Studio Code.app/Contents/MacOS/Electron
+            // 目標: .../Visual Studio Code.app
+
+            // 簡單策略：嘗試從 process.execPath 推導，或使用 "Visual Studio Code" 名稱
+            // 使用名稱最簡單，但如果是 Insiders 或 Cursor 會不同
+            let appName = 'Visual Studio Code';
+            if (vscode.env.appName.includes('Insiders')) appName = 'Visual Studio Code - Insiders';
+            if (vscode.env.appName.includes('Cursor')) appName = 'Cursor';
+
+            this.logger.info(`[Relauncher] Relaunching ${appName} on macOS...`);
+
+            const args = ['-n', '-a', appName, '--args', '--remote-debugging-port=' + CDP_PORT];
+            if (folders) {
+                // open 命令不直接接受資料夾作為 --args，而是作為 open 的參數
+                // open -n -a "VS Code" <folders> --args ...
+                // 注意：放在 --args 之後的參數會傳給 app，放在之前的傳給 open
+                // 資料夾應該是 open 的參數
+                // 正確格式: open -n -a "VS Code" --args ... (VS Code 可能需要資料夾作為參數傳給它)
+
+                // VS Code 特定： code --remote-... <folder>
+                // 所以 <folder> 應該在 --args 之後
+                args.push(folders.replace(/"/g, '')); // 移除引號，spawn 會處理
+            }
+
+            const child = cp.spawn('open', args, {
+                detached: true,
+                stdio: 'ignore'
+            });
+            child.unref();
+
+        } else if (this.platform === 'linux') {
+            // Linux: 嘗試直接執行 executable 或使用 gtk-launch
+            // process.execPath 指向二進制文件
+            const exe = process.execPath;
+            const args = [CDP_FLAG];
+            if (folders) {
+                args.push(folders.replace(/"/g, ''));
+            }
+
+            this.logger.info(`[Relauncher] Relaunching on Linux: ${exe} ${args.join(' ')}`);
+
+            const child = cp.spawn(exe, args, {
+                detached: true,
+                stdio: 'ignore'
+            });
+            child.unref();
         }
 
         // 稍微延遲後關閉當前視窗
         setTimeout(() => {
             vscode.commands.executeCommand('workbench.action.quit');
-        }, 500);
+        }, 1000);
     }
 
     /**
