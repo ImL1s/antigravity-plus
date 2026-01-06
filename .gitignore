@@ -18,3 +18,8 @@ docs/competitor-analysis/
 # CI Debug files
 run_jobs_*.json
 ubuntu_run*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
