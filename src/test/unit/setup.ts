@@ -59,7 +59,11 @@ export const mockVScodeApi = {
     },
     ThemeColor: class { },
     ThemeIcon: class { },
-    extensions: { getExtension: () => undefined }
+    extensions: { getExtension: () => undefined },
+    env: {
+        appName: 'Visual Studio Code',
+        language: 'en'
+    }
 };
 
 console.log('✅ VS Code Mock Provider initialized');

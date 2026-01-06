@@ -17,9 +17,15 @@ const CDP_FLAG = `--remote-debugging-port=${CDP_PORT}`;
 
 export class Relauncher {
     private platform: string;
+    private fs: typeof fs;
+    private os: typeof os;
+    private cp: typeof cp;
 
-    constructor(private logger: Logger) {
-        this.platform = os.platform();
+    constructor(private logger: Logger, deps?: { fs?: any, os?: any, cp?: any }) {
+        this.fs = deps?.fs || fs;
+        this.os = deps?.os || os;
+        this.cp = deps?.cp || cp;
+        this.platform = this.os.platform();
     }
 
     /**
@@ -150,15 +156,15 @@ export class Relauncher {
             `${vscode.env.appName}.desktop`.toLowerCase().replace(/\s+/g, '-')
         ];
 
-        const userDir = path.join(os.homedir(), '.local', 'share', 'applications');
+        const userDir = path.join(this.os.homedir(), '.local', 'share', 'applications');
         const systemDirs = [
             '/usr/share/applications',
             '/var/lib/snapd/desktop/applications'
         ];
 
         // 確保用戶目錄存在
-        if (!fs.existsSync(userDir)) {
-            fs.mkdirSync(userDir, { recursive: true });
+        if (!this.fs.existsSync(userDir)) {
+            this.fs.mkdirSync(userDir, { recursive: true });
         }
 
         let targetFile = '';
@@ -167,7 +173,7 @@ export class Relauncher {
         // 1. 檢查用戶目錄是否已有檔案
         for (const name of candidates) {
             const p = path.join(userDir, name);
-            if (fs.existsSync(p)) {
+            if (this.fs.existsSync(p)) {
                 targetFile = p;
                 sourceFile = p;
                 break;
@@ -179,7 +185,7 @@ export class Relauncher {
             for (const dir of systemDirs) {
                 for (const name of candidates) {
                     const p = path.join(dir, name);
-                    if (fs.existsSync(p)) {
+                    if (this.fs.existsSync(p)) {
                         sourceFile = p;
                         targetFile = path.join(userDir, name); // 複製目標
                         break;
@@ -196,7 +202,7 @@ export class Relauncher {
 
         try {
             this.logger.info(`[Relauncher] Reading from ${sourceFile}`);
-            const content = fs.readFileSync(sourceFile, 'utf8');
+            const content = this.fs.readFileSync(sourceFile, 'utf8');
 
             // 修改 Exec 行
             // 匹配 Exec=... 且不包含我們參數的行
@@ -232,11 +238,11 @@ export class Relauncher {
             });
 
             if (modified) {
-                fs.writeFileSync(targetFile, newLines.join('\n'), 'utf8');
+                this.fs.writeFileSync(targetFile, newLines.join('\n'), 'utf8');
                 this.logger.info(`[Relauncher] Written modified .desktop to ${targetFile}`);
 
                 // 更新 desktop database
-                cp.exec('update-desktop-database ' + userDir, (err) => {
+                this.cp.exec('update-desktop-database ' + userDir, (err) => {
                     if (err) this.logger.warn(`[Relauncher] update-desktop-database failed: ${err.message}`);
                 });
 
@@ -297,7 +303,7 @@ if ($modified) { Write-Output "MODIFIED_SUCCESS" } else { Write-Output "NO_CHANG
         if (this.platform === 'win32') {
             const ideName = this.getIdeName();
             const cmd = `timeout /t 2 /nobreak >nul & start "" "${ideName}" ${folders}`;
-            const child = cp.spawn('cmd.exe', ['/c', cmd], {
+            const child = this.cp.spawn('cmd.exe', ['/c', cmd], {
                 detached: true,
                 stdio: 'ignore'
             });
@@ -330,7 +336,7 @@ if ($modified) { Write-Output "MODIFIED_SUCCESS" } else { Write-Output "NO_CHANG
                 args.push(folders.replace(/"/g, '')); // 移除引號，spawn 會處理
             }
 
-            const child = cp.spawn('open', args, {
+            const child = this.cp.spawn('open', args, {
                 detached: true,
                 stdio: 'ignore'
             });
@@ -347,7 +353,7 @@ if ($modified) { Write-Output "MODIFIED_SUCCESS" } else { Write-Output "NO_CHANG
 
             this.logger.info(`[Relauncher] Relaunching on Linux: ${exe} ${args.join(' ')}`);
 
-            const child = cp.spawn(exe, args, {
+            const child = this.cp.spawn(exe, args, {
                 detached: true,
                 stdio: 'ignore'
             });
@@ -366,12 +372,12 @@ if ($modified) { Write-Output "MODIFIED_SUCCESS" } else { Write-Output "NO_CHANG
     private async runPowerShell(script: string): Promise<string> {
         return new Promise((resolve) => {
             try {
-                const tempFile = path.join(os.tmpdir(), `relaunch_${Date.now()}.ps1`);
-                fs.writeFileSync(tempFile, script, 'utf8');
+                const tempFile = path.join(this.os.tmpdir(), `relaunch_${Date.now()}.ps1`);
+                this.fs.writeFileSync(tempFile, script, 'utf8');
 
-                cp.exec(`powershell -ExecutionPolicy Bypass -File "${tempFile}"`, (error, stdout, stderr) => {
+                this.cp.exec(`powershell -ExecutionPolicy Bypass -File "${tempFile}"`, (error, stdout, stderr) => {
                     // 清理暫存檔
-                    try { fs.unlinkSync(tempFile); } catch { /* ignore cleanup errors */ }
+                    try { this.fs.unlinkSync(tempFile); } catch { /* ignore cleanup errors */ }
 
                     if (error) {
                         this.logger.error(`[Relauncher] PowerShell error: ${error.message}`);
