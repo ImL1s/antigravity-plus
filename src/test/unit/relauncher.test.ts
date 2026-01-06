@@ -16,7 +16,8 @@ describe('Unit Tests - Relauncher', () => {
             mkdirSync: () => { },
             readFileSync: () => '',
             writeFileSync: () => { },
-            unlinkSync: () => { }
+            unlinkSync: () => { },
+            appendFileSync: () => { }
         };
         mockOs = {
             platform: () => 'linux',
@@ -120,10 +121,12 @@ describe('Unit Tests - Relauncher', () => {
     describe('macOS Strategy (Relaunch prompt)', () => {
         it('should trigger relaunch when user chooses to restart', async () => {
             mockOs.platform = () => 'darwin';
-            // Need to recreate relauncher to pick up new platform logic if it's cached in constructor
             relauncher = new Relauncher(mockLogger, { fs: mockFs, os: mockOs, cp: mockCp });
 
-            vscodeMock.window.showInformationMessage = () => Promise.resolve('立即重啟');
+            vscodeMock.window.showInformationMessage = (msg: string, ...items: string[]) => {
+                if (items.includes('立即重啟')) return Promise.resolve('立即重啟');
+                return Promise.resolve(undefined);
+            };
 
             let relaunchCalled = false;
             (relauncher as any).relaunch = async () => { relaunchCalled = true; };
@@ -132,6 +135,46 @@ describe('Unit Tests - Relauncher', () => {
 
             assert.strictEqual(result, true);
             assert.strictEqual(relaunchCalled, true);
+        });
+
+        it('should append alias to .zshrc', async () => {
+            mockOs.platform = () => 'darwin';
+            const zshrc = '/home/user/.zshrc';
+
+            let appendedFile = '';
+            let appendedContent = '';
+
+            mockFs.existsSync = (p: string) => p === zshrc;
+            mockFs.readFileSync = () => 'export PATH=$PATH:/bin\n';
+            mockFs.appendFileSync = (p: string, c: string) => {
+                appendedFile = p;
+                appendedContent = c;
+            };
+
+            const result = await (relauncher as any).setupMacOSAlias();
+
+            assert.strictEqual(result, true);
+            assert.strictEqual(appendedFile, zshrc);
+            assert.ok(appendedContent.includes("alias code='code --remote-debugging-port=9000'"));
+        });
+
+        it('should replace existing alias in .zshrc', async () => {
+            mockOs.platform = () => 'darwin';
+            const zshrc = '/home/user/.zshrc';
+            const existing = "alias code='code --something-else'\n";
+
+            let writtenContent = '';
+            mockFs.existsSync = (p: string) => p === zshrc;
+            mockFs.readFileSync = () => existing;
+            mockFs.writeFileSync = (p: string, c: string) => {
+                writtenContent = c;
+            };
+
+            const result = await (relauncher as any).setupMacOSAlias();
+
+            assert.strictEqual(result, true);
+            assert.ok(writtenContent.includes("alias code='code --remote-debugging-port=9000'"));
+            assert.ok(!writtenContent.includes('--something-else'));
         });
     });
 

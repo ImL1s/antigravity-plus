@@ -120,26 +120,90 @@ export class Relauncher {
     }
 
     /**
-     * macOS: 暫不支援永久修改，僅提示
+     * macOS: 暫不支援永久修改 GUI，提供立即重啟或安裝 Shell Alias
      */
     private async modifyMacOSShortcut(): Promise<boolean> {
         // macOS App Signing 防止直接修改 Info.plist
         // 我們將依賴 "Relaunch Now" 功能 (使用 open 命令帶參數)
-        // 這裡回傳 false 並不代表失敗，而是觸發手動/立即重啟流程
-        this.logger.info('[Relauncher] macOS permanent modification not supported automatically.');
+        // 或者是安裝 Shell Alias 以便從終端機啟動時自動帶參數
+        this.logger.info('[Relauncher] macOS permanent GUI modification not supported automatically.');
 
         const choice = await vscode.window.showInformationMessage(
-            'macOS 安全限制阻止自動修改捷徑。您可以選擇 "立即使用參數重啟" 來啟用此功能 (僅本次有效)。',
+            'macOS 安全限制阻止自動修改 GUI 捷徑。您可以選擇 "立即參數重啟" 或 "安裝終端機 Alias (永久)"。',
             '立即重啟',
-            '了解'
+            '安裝終端機 Alias',
+            '取消'
         );
 
         if (choice === '立即重啟') {
             await this.relaunch();
-            return true; // 視為已處理，雖然沒有永久修改
+            return true;
+        }
+
+        if (choice === '安裝終端機 Alias') {
+            const success = await this.setupMacOSAlias();
+            if (success) {
+                vscode.window.showInformationMessage('Alias 安裝成功！以後從終端機啟動將自動啟用 CDP。');
+                return true;
+            } else {
+                vscode.window.showErrorMessage('Alias 安裝失敗。請手動檢查 ~/.zshrc 或 ~/.bash_profile。');
+            }
         }
 
         return false;
+    }
+
+    /**
+     * macOS: 設定 Shell Alias 以達成持久化 (針對 CLI 啟動)
+     */
+    private async setupMacOSAlias(): Promise<boolean> {
+        try {
+            const home = this.os.homedir();
+            const zshrc = path.join(home, '.zshrc');
+            const bashProfile = path.join(home, '.bash_profile');
+
+            // 決定別名名稱 (code 或 cursor)
+            const ideBinary = this.getIdeName().toLowerCase() === 'cursor' ? 'cursor' : 'code';
+            const aliasLine = `\nalias ${ideBinary}='${ideBinary} ${CDP_FLAG}'\n`;
+
+            let targetFile = '';
+            if (this.fs.existsSync(zshrc)) {
+                targetFile = zshrc;
+            } else if (this.fs.existsSync(bashProfile)) {
+                targetFile = bashProfile;
+            } else {
+                // 如果都沒有，預設建立一個 .zshrc (macOS 預設 shell 是 zsh)
+                targetFile = zshrc;
+            }
+
+            this.logger.info(`[Relauncher] Attempting to add alias to ${targetFile}`);
+
+            let content = '';
+            if (this.fs.existsSync(targetFile)) {
+                content = this.fs.readFileSync(targetFile, 'utf8');
+            }
+
+            if (content.includes(`alias ${ideBinary}=`)) {
+                // 如果已有別名，替換之
+                const lines = content.split('\n');
+                const newLines = lines.map(line => {
+                    if (line.trim().startsWith(`alias ${ideBinary}=`)) {
+                        return `alias ${ideBinary}='${ideBinary} ${CDP_FLAG}'`;
+                    }
+                    return line;
+                });
+                this.fs.writeFileSync(targetFile, newLines.join('\n'), 'utf8');
+            } else {
+                // 否則追加
+                this.fs.appendFileSync(targetFile, aliasLine, 'utf8');
+            }
+
+            return true;
+        } catch (e) {
+            const error = e as Error;
+            this.logger.error(`[Relauncher] macOS Alias setup failed: ${error.message}`);
+            return false;
+        }
     }
 
     /**
