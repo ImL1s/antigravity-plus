@@ -9,7 +9,7 @@ import { ImpactTracker, ImpactStats } from '../core/auto-approve/impact-tracker'
 import { PerformanceModeController } from '../core/auto-approve/performance-mode';
 import { AutoWakeupController, WakeupConfig } from '../core/auto-wakeup/controller';
 import { ContextOptimizerController, ContextSuggestion } from '../core/context-optimizer/controller';
-import { QuotaMonitorController, QuotaData } from '../core/quota-monitor/controller';
+import { QuotaMonitorController } from '../core/quota-monitor/controller';
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;

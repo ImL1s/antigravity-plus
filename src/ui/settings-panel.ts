@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import { ROITracker } from '../core/analytics/roi-tracker';
 import { ConfigManager } from '../utils/config';
-import { t } from '../i18n';
+
 
 export class SettingsPanel {
     public static currentPanel: SettingsPanel | undefined;
