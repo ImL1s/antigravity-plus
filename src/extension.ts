@@ -20,6 +20,8 @@ import { PerformanceModeController } from './core/auto-approve/performance-mode'
 import { AutoWakeupController } from './core/auto-wakeup/controller';
 import { ContextOptimizerController } from './core/context-optimizer/controller';
 import { ROITracker } from './core/analytics/roi-tracker';
+import { Relauncher } from './core/auto-approve/relauncher';
+import { AnnouncementService } from './services/announcement-service';
 import { StatusBarManager } from './ui/status-bar';
 import { DashboardPanel } from './ui/dashboard';
 import { Logger } from './utils/logger';
@@ -34,6 +36,8 @@ let performanceMode: PerformanceModeController | undefined;
 let wakeupController: AutoWakeupController | undefined;
 let contextOptimizer: ContextOptimizerController | undefined;
 let roiTracker: ROITracker | undefined;
+let relauncher: Relauncher | undefined;
+let announcementService: AnnouncementService | undefined;
 let statusBarManager: StatusBarManager | undefined;
 let logger: Logger | undefined;
 let configManager: ConfigManager | undefined;
@@ -102,6 +106,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         wakeupController.start().catch(err => {
             logger?.error(`自動喚醒啟動失敗: ${err}`);
         });
+
+        // 初始化 Relauncher (CDP Setup)
+        relauncher = new Relauncher(logger);
+
+        // 初始化公告服務
+        announcementService = new AnnouncementService(logger, configManager);
+        announcementService.initialize(context);
+        context.subscriptions.push(announcementService);
+
         console.log('[DEBUG] Antigravity Plus: AutoWakeupController initialized');
 
         // 開始新 session
@@ -309,6 +322,15 @@ function registerCommands(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('antigravity-plus.showLogs', () => {
             logger?.showOutputChannel();
+        })
+    );
+
+    // Setup CDP (Relauncher)
+    context.subscriptions.push(
+        vscode.commands.registerCommand('antigravity-plus.setupCDP', async () => {
+            if (relauncher) {
+                await relauncher.ensureCDPAndRelaunch();
+            }
         })
     );
 
