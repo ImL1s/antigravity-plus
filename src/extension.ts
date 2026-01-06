@@ -19,6 +19,7 @@ import { ImpactTracker } from './core/auto-approve/impact-tracker';
 import { PerformanceModeController } from './core/auto-approve/performance-mode';
 import { AutoWakeupController } from './core/auto-wakeup/controller';
 import { ContextOptimizerController } from './core/context-optimizer/controller';
+import { ROITracker } from './core/analytics/roi-tracker';
 import { StatusBarManager } from './ui/status-bar';
 import { DashboardPanel } from './ui/dashboard';
 import { Logger } from './utils/logger';
@@ -32,6 +33,7 @@ let impactTracker: ImpactTracker | undefined;
 let performanceMode: PerformanceModeController | undefined;
 let wakeupController: AutoWakeupController | undefined;
 let contextOptimizer: ContextOptimizerController | undefined;
+let roiTracker: ROITracker | undefined;
 let statusBarManager: StatusBarManager | undefined;
 let logger: Logger | undefined;
 let configManager: ConfigManager | undefined;
@@ -53,6 +55,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // 初始化 Impact & Performance
         impactTracker = new ImpactTracker(context);
         performanceMode = new PerformanceModeController(context);
+
+        // 初始化 ROI 追蹤器
+        roiTracker = new ROITracker(logger);
+        roiTracker.initialize(context);
+        context.subscriptions.push(roiTracker);
+
+        // 設置視窗焦點狀態監聽器
+        context.subscriptions.push(
+            vscode.window.onDidChangeWindowState((e) => {
+                if (roiTracker) {
+                    roiTracker.setFocusState(e.focused);
+
+                    // 當使用者回來時，檢查離開時的操作數
+                    if (e.focused) {
+                        const awayActions = roiTracker.consumeAwayActions();
+                        if (awayActions > 0) {
+                            roiTracker.showAwayActionsNotification(awayActions);
+                        }
+                    }
+                }
+            })
+        );
 
         console.log('[DEBUG] Antigravity Plus: Basic tools initialized');
         // 初始化 UI

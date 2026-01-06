@@ -5,6 +5,7 @@ import { ConfigManager } from '../../utils/config';
 import { RulesEngine } from './rules-engine';
 import { OperationLogger, OperationLog } from './operation-logger';
 import { CDPManager } from './cdp-manager';
+import { InstanceLock } from './instance-lock';
 
 export interface ApprovalResult {
     approved: boolean;
@@ -17,9 +18,11 @@ export class AutoApproveController implements vscode.Disposable {
     private rulesEngine: RulesEngine;
     private operationLogger: OperationLogger;
     private cdpManager: CDPManager;
+    private instanceLock: InstanceLock;
     private disposables: vscode.Disposable[] = [];
     private intervalId: NodeJS.Timeout | null = null;
     private isDisposed: boolean = false;
+    private isLockedOut: boolean = false;
 
     constructor(
         private context: vscode.ExtensionContext,
@@ -32,6 +35,8 @@ export class AutoApproveController implements vscode.Disposable {
         this.rulesEngine = new RulesEngine(configManager);
         this.operationLogger = new OperationLogger(context);
         this.cdpManager = cdpManager || new CDPManager(logger);
+        this.instanceLock = new InstanceLock(logger);
+        this.instanceLock.initialize(context);
 
         this.initialize();
     }
@@ -100,6 +105,21 @@ export class AutoApproveController implements vscode.Disposable {
     private async poll() {
         if (!this.enabled || this.isDisposed) {
             return;
+        }
+
+        // 檢查實例鎖定
+        const hasLock = await this.instanceLock.acquireLock();
+        if (!hasLock) {
+            if (!this.isLockedOut) {
+                this.logger.info('[AutoApprove] 另一個視窗持有控制權，進入待機模式');
+                this.isLockedOut = true;
+            }
+            return;
+        }
+
+        if (this.isLockedOut) {
+            this.logger.info('[AutoApprove] 已獲取控制權，恢復運行');
+            this.isLockedOut = false;
         }
 
         try {
