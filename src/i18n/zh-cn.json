@@ -63,6 +63,7 @@
     "countdown.hours": "{0}小时 {1}分",
     "countdown.minutes": "{0}分",
     "countdown.reset": "已重置",
+    "countdown.ready": "已就绪",
     "grouping.ungrouped": "未分组",
     "grouping.custom": "自定义组"
 }

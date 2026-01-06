@@ -680,6 +680,11 @@ export class DashboardPanel {
 
         // Initial load
         refreshQuota();
+        
+        // Auto refresh every 60 seconds (sync with Status Bar)
+        setInterval(() => {
+            refreshQuota();
+        }, 60000);
     </script>
 </body>
 </html>`;

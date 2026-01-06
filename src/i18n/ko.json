@@ -63,6 +63,7 @@
     "countdown.hours": "{0}시간 {1}분",
     "countdown.minutes": "{0}분",
     "countdown.reset": "초기화됨",
+    "countdown.ready": "준비됨",
     "grouping.ungrouped": "미분류",
     "grouping.custom": "사용자 정의 그룹"
 }

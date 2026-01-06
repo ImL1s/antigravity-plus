@@ -189,8 +189,17 @@ export class AntigravityUsageProvider {
                 ? remainingFraction * 100  // ✅ 剩餘百分比 (不是已使用)
                 : 0;
 
-            const resetTime = quotaInfo.resetTime ? new Date(quotaInfo.resetTime) : new Date();
             const now = new Date();
+            let resetTime = quotaInfo.resetTime ? new Date(quotaInfo.resetTime) : new Date();
+            let resetTimeValid = true;
+
+            // ✅ 對標 Cockpit: 檢查 resetTime 是否有效
+            if (Number.isNaN(resetTime.getTime())) {
+                resetTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 預設 24 小時後
+                resetTimeValid = false;
+                this.logger.warn(`Invalid resetTime for model ${config.label}: ${quotaInfo.resetTime}`);
+            }
+
             const timeUntilReset = resetTime.getTime() - now.getTime();
 
             // ✅ 對標 Cockpit: 使用 label 和 modelOrAlias.model
@@ -206,7 +215,7 @@ export class AntigravityUsageProvider {
                 remainingPercentage: remainingPercentage,
                 isExhausted: remainingFraction === 0,
                 timeUntilReset: timeUntilReset,
-                timeUntilResetFormatted: this.formatDelta(timeUntilReset),
+                timeUntilResetFormatted: resetTimeValid ? this.formatDelta(timeUntilReset) : 'Unknown',
                 // 能力欄位
                 supportsImages: config.supportsImages,
                 isRecommended: config.isRecommended,

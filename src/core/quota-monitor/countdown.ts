@@ -22,8 +22,8 @@ export function calculateCountdown(resetTime: Date): CountdownResult {
 
     if (diff <= 0) {
         return {
-            text: t('countdown.reset'),
-            shortText: t('countdown.reset'),
+            text: t('countdown.ready') || 'Ready',
+            shortText: t('countdown.ready') || 'Ready',
             isExpired: true,
             totalSeconds: 0
         };

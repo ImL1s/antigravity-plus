@@ -63,6 +63,7 @@
     "countdown.hours": "{0}h {1}m",
     "countdown.minutes": "{0}m",
     "countdown.reset": "Reset",
+    "countdown.ready": "Ready",
     "grouping.ungrouped": "Ungrouped",
     "grouping.custom": "Custom Group"
 }

@@ -63,6 +63,7 @@
     "countdown.hours": "{0}時間 {1}分",
     "countdown.minutes": "{0}分",
     "countdown.reset": "リセット済み",
+    "countdown.ready": "準備完了",
     "grouping.ungrouped": "未グループ",
     "grouping.custom": "カスタムグループ"
 }
