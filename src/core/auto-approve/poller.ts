@@ -156,72 +156,73 @@ export class Poller implements vscode.Disposable {
             return results;
         }
 
-        // 使用 CDP 注入腳本偵測按鈕
+        // 使用 CDP 注入腳本偵測按鈕 (基於 MunKhin/auto-accept-agent)
         const script = `
             (function() {
                 const results = [];
                 
-                // Accept 按鈕選擇器
-                const acceptSelectors = [
-                    '[data-testid="accept-button"]',
-                    '[data-action="accept"]',
-                    'button:contains("Accept")',
-                    'button:contains("接受")',
-                    'button:contains("Approve")',
-                    '.accept-btn',
-                    '.approve-btn'
-                ];
-                
-                // Run 按鈕選擇器
-                const runSelectors = [
-                    '[data-testid="run-button"]',
-                    '[data-action="run"]',
-                    'button:contains("Run")',
-                    'button:contains("執行")',
-                    '.run-btn'
-                ];
-                
-                // Confirm 按鈕選擇器
-                const confirmSelectors = [
-                    '[data-testid="confirm-button"]',
-                    '[data-action="confirm"]',
-                    'button:contains("Confirm")',
-                    'button:contains("確認")',
-                    '.confirm-btn'
-                ];
-                
-                // Apply 按鈕選擇器
-                const applySelectors = [
-                    '[data-testid="apply-button"]',
-                    '[data-action="apply"]',
-                    'button:contains("Apply")',
-                    'button:contains("套用")',
-                    '.apply-btn'
-                ];
-                
-                function findButtons(selectors, type) {
-                    for (const selector of selectors) {
-                        try {
-                            const elements = document.querySelectorAll(selector);
-                            elements.forEach(el => {
-                                if (el.offsetParent !== null) { // 可見
-                                    results.push({
-                                        type: type,
-                                        selector: selector,
-                                        text: el.textContent?.trim() || ''
-                                    });
-                                }
-                            });
-                        } catch (e) {
-                            // 選擇器可能無效，忽略
-                        }
-                    }
+                // 判斷是否為可接受的按鈕
+                function isAcceptButton(el) {
+                    const text = (el.textContent || "").trim().toLowerCase();
+                    if (text.length === 0 || text.length > 50) return false;
+                    
+                    // 接受模式
+                    const patterns = ['accept', 'run', 'retry', 'apply', 'execute', 'confirm', 'allow once', 'allow'];
+                    // 拒絕模式
+                    const rejects = ['skip', 'reject', 'cancel', 'close', 'refine'];
+                    
+                    // 如果包含拒絕詞，跳過
+                    if (rejects.some(r => text.includes(r))) return false;
+                    // 如果不包含任何接受詞，跳過
+                    if (!patterns.some(p => text.includes(p))) return false;
+                    
+                    // 檢查可見性
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return style.display !== 'none' && rect.width > 0 && 
+                           style.pointerEvents !== 'none' && !el.disabled;
                 }
                 
-                findButtons(acceptSelectors, 'accept');
-                findButtons(runSelectors, 'run');
-                findButtons(confirmSelectors, 'confirm');
-                findButtons(applySelectors, 'apply');
+                // 判斷按鈕類型
+                function getButtonType(text) {
+                    const lowerText = text.toLowerCase();
+                    if (lowerText.includes('run') || lowerText.includes('execute')) return 'run';
+                    if (lowerText.includes('apply')) return 'apply';
+                    if (lowerText.includes('confirm')) return 'confirm';
+                    return 'accept';
+                }
+                
+                // Antigravity 專用選擇器 + 通用選擇器
+                const selectors = [
+                    '.bg-ide-button-background',  // Antigravity 主要按鈕
+                    'button',
+                    '[class*="button"]',
+                    '[class*="anysphere"]'
+                ];
+                
+                const found = new Set();
+                
+                selectors.forEach(selector => {
+                    try {
+                        const elements = document.querySelectorAll(selector);
+                        elements.forEach(el => {
+                            // 避免重複
+                            if (found.has(el)) return;
+                            
+                            if (isAcceptButton(el)) {
+                                found.add(el);
+                                const text = el.textContent?.trim() || '';
+                                results.push({
+                                    type: getButtonType(text),
+                                    selector: selector,
+                                    text: text
+                                });
+                            }
+                        });
+                    } catch (e) {
+                        // 選擇器可能無效，忽略
+                    }
+                });
                 
                 return results;
             })()
