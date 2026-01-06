@@ -24,6 +24,7 @@ import { Relauncher } from './core/auto-approve/relauncher';
 import { AnnouncementService } from './services/announcement-service';
 import { StatusBarManager } from './ui/status-bar';
 import { DashboardPanel } from './ui/dashboard';
+import { SettingsPanel } from './ui/settings-panel';
 import { Logger } from './utils/logger';
 import { ConfigManager } from './utils/config';
 import { initI18n, updateLocale, t } from './i18n';
@@ -330,6 +331,20 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('antigravity-plus.setupCDP', async () => {
             if (relauncher) {
                 await relauncher.ensureCDPAndRelaunch();
+            }
+        })
+    );
+
+    // Open Settings Panel
+    context.subscriptions.push(
+        vscode.commands.registerCommand('antigravity-plus.openSettings', () => {
+            if (roiTracker && configManager) {
+                SettingsPanel.createOrShow(
+                    context.extensionUri,
+                    context,
+                    roiTracker,
+                    configManager
+                );
             }
         })
     );
