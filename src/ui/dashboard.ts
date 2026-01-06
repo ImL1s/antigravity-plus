@@ -66,7 +66,8 @@ export class DashboardPanel {
             column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                retainContextWhenHidden: true
+                retainContextWhenHidden: true,
+                localResourceRoots: [extensionUri]
             }
         );
 
@@ -153,11 +154,13 @@ export class DashboardPanel {
         const perfInterval = this.performanceMode.getIntervalDisplay();
         const sliderValue = this.performanceMode.getSliderValue();
 
+        const cspSource = this._panel.webview.cspSource;
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src ${cspSource} 'unsafe-inline';">
     <title>Antigravity Plus</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
