@@ -559,7 +559,8 @@ export class DashboardPanel {
         </div>
     </div>
 
-    <!-- Context Optimizer -->
+    <!-- Context Optimizer (Hidden) -->
+    <!--
     <div class="card">
         <div class="card-header">
             <span class="card-title">🔍 Context Optimizer</span>
@@ -579,6 +580,7 @@ export class DashboardPanel {
             ${this._suggestions.length > 0 ? '<button class="btn btn-secondary" onclick="applyOptimization()">Apply</button>' : ''}
         </div>
     </div>
+    -->
 
     <!-- Activity Timeline -->
     <div class="card">

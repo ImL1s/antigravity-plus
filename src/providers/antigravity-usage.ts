@@ -13,6 +13,8 @@ import { Logger } from '../utils/logger';
 import { QuotaData, ModelQuota } from '../core/quota-monitor/controller';
 import * as https from 'https';
 import { ProcessDetector, AntigravityProcess } from '../core/quota-monitor/process-detector';
+import * as vscode from 'vscode';
+import { t } from '../i18n';
 
 // 常數
 const API_ENDPOINT = '/exa.language_server_pb.LanguageServerService/GetUserStatus';
@@ -21,6 +23,15 @@ const HTTP_TIMEOUT_MS = 5000;
 interface AntigravityConnection {
     port: number;
     csrfToken: string;
+}
+
+// 對標 Cockpit: 用於解析 clientModelSorts
+interface ModelSortGroup {
+    modelLabels: string[];
+}
+
+interface ClientModelSort {
+    groups: ModelSortGroup[];
 }
 
 export class AntigravityUsageProvider {
@@ -44,7 +55,7 @@ export class AntigravityUsageProvider {
             }
 
             if (!this.connection) {
-                this.logger.warn('無法連接到 Antigravity 服務');
+                // this.logger.warn('無法連接到 Antigravity 服務'); // 降低 Log 噪音
                 return undefined;
             }
 
@@ -223,8 +234,21 @@ export class AntigravityUsageProvider {
             });
         }
 
+        // ✅ 對標 Cockpit: 取得排序設定
+        const modelSorts: ClientModelSort[] = status.cascadeModelConfigData?.clientModelSorts || [];
+
+        // 1. 排序模型
+        this.sortModels(models, modelSorts);
+
+        // 2. 過濾模型 (visibleModels)
+        const visibleModels = vscode.workspace.getConfiguration('antigravity-plus').get<string[]>('quotaMonitor.visibleModels') || [];
+        const filteredModels = this.filterModels(models, visibleModels);
+
+        // 如果過濾後為空，且有設定過濾規則，則記錄警告但不阻止回傳 (或回傳原始列表)
+        const finalModels = (filteredModels.length === 0 && visibleModels.length > 0) ? models : filteredModels;
+
         // 如果沒有配額資料，創建預設資料
-        if (models.length === 0) {
+        if (finalModels.length === 0) {
             return this.createDefaultQuotaData();
         }
 
@@ -247,11 +271,10 @@ export class AntigravityUsageProvider {
         }
 
         return {
-            models,
+            models: finalModels,
             accountLevel: status.userTier?.name || plan?.teamsTier || 'Free',
             promptCredits,
             lastUpdated: new Date(),
-            // ✅ 新增欄位
             userInfo: {
                 name: status.name || 'Unknown',
                 email: status.email || 'N/A',
@@ -305,5 +328,62 @@ export class AntigravityUsageProvider {
         };
 
         return displayNames[model] || model;
+    }
+
+    /**
+     * 依照設定排序模型 (對標 Cockpit reactor.ts buildSnapshot)
+     */
+    private sortModels(models: ModelQuota[], modelSorts: ClientModelSort[]): void {
+        const sortOrderMap = new Map<string, number>();
+
+        if (modelSorts.length > 0) {
+            // 使用第一個排序配置（通常是 "Recommended"）
+            const primarySort = modelSorts[0];
+            let index = 0;
+            for (const group of primarySort.groups) {
+                for (const label of group.modelLabels) {
+                    sortOrderMap.set(label, index++);
+                }
+            }
+        }
+
+        models.sort((a, b) => {
+            const indexA = sortOrderMap.get(a.displayName);
+            const indexB = sortOrderMap.get(b.displayName);
+
+            // 兩個都在排序列表中，按排序列表順序
+            if (indexA !== undefined && indexB !== undefined) {
+                return indexA - indexB;
+            }
+            // 只有 a 在排序列表中，a 排前面
+            if (indexA !== undefined) {
+                return -1;
+            }
+            // 只有 b 在排序列表中，b 排前面
+            if (indexB !== undefined) {
+                return 1;
+            }
+            // 都不在排序列表中，按 label (displayName) 字母排序
+            return a.displayName.localeCompare(b.displayName);
+        });
+    }
+
+    /**
+     * 過濾模型 (對標 Cockpit reactor.ts buildSnapshot)
+     * 
+     * 支援同時過濾 name (modelId) 和 displayName (label)
+     */
+    private filterModels(models: ModelQuota[], visibleModels: string[]): ModelQuota[] {
+        if (visibleModels.length === 0) {
+            return models;
+        }
+
+        // 轉換為 Set 加速查詢，同時支援小寫比對
+        const visibleSet = new Set(visibleModels.map(v => v.toLowerCase()));
+
+        return models.filter(model =>
+            visibleSet.has(model.name.toLowerCase()) ||
+            visibleSet.has(model.displayName.toLowerCase())
+        );
     }
 }
