@@ -1,3 +1,10 @@
+## [0.0.34](https://github.com/ImL1s/antigravity-plus/compare/v0.0.33...v0.0.34) (2026-01-07)
+
+
+### Bug Fixes
+
+* **ci:** upgrade node version to 22 for semantic-release ([c091eae](https://github.com/ImL1s/antigravity-plus/commit/c091eae7c8928772e88434081996ce7dfcb61111))
+
 # Change Log
 
 ## [0.0.33] - 2026-01-07
