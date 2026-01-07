@@ -389,20 +389,64 @@ export class StatusBarManager implements vscode.Disposable {
     }
 
     /**
-     * 取得縮短名稱
+     * 取得縮短名稱（含模型識別圖示）
+     * 使用獨特的 emoji 讓用戶一眼識別不同模型
      */
     private getShortName(name: string): string {
+        // 使用 emoji + 縮寫，讓不同模型一眼可辨
         const shortNames: Record<string, string> = {
-            'Gemini 3 Pro': 'Pro',
-            'Gemini 3 Flash': 'Flash',
-            'Gemini Pro': 'Pro',
-            'Gemini Flash': 'Flash',
-            'Claude Sonnet': 'Sonnet',
-            'Claude Opus': 'Opus',
-            'GPT-4o': '4o',
-            'GPT-4o Mini': '4o-mini'
+            // Gemini 系列 - 使用不同顏色的形狀
+            'Gemini 3 Pro': '🔷Pro',           // 藍色菱形 = Pro
+            'Gemini 3 Flash': '⚡Flash',        // 閃電 = Flash (快速)
+            'Gemini Pro': '🔷Pro',
+            'Gemini Flash': '⚡Flash',
+            'Gemini 2.5 Pro': '🔷2.5P',
+            'Gemini 2.5 Flash': '⚡2.5F',
+            'Gemini 2.0 Flash': '⚡2.0F',
+            'Gemini 1.5 Pro': '🔷1.5P',
+            'Gemini 1.5 Flash': '⚡1.5F',
+
+            // Claude 系列
+            'Claude Sonnet': '🎵Sonnet',        // 音符 = Sonnet
+            'Claude Opus': '🎼Opus',            // 樂譜 = Opus
+            'Claude Haiku': '🌸Haiku',          // 櫻花 = Haiku
+
+            // GPT 系列
+            'GPT-4o': '🟢4o',                   // 綠色圓形 = OpenAI
+            'GPT-4o Mini': '🟢Mini',
+            'GPT-4': '🟢GPT4',
+
+            // 其他
+            'o1': '🧠o1',                       // 大腦 = 推理模型
+            'o1-mini': '🧠o1m',
+            'o1-preview': '🧠o1p'
         };
-        return shortNames[name] || name.split(' ').pop() || name;
+
+        // 嘗試精確匹配
+        if (shortNames[name]) {
+            return shortNames[name];
+        }
+
+        // 嘗試部分匹配
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes('flash')) {
+            return '⚡' + name.replace(/gemini\s*/i, '').replace(/flash/i, 'F').trim();
+        }
+        if (lowerName.includes('pro')) {
+            return '🔷' + name.replace(/gemini\s*/i, '').replace(/pro/i, 'P').trim();
+        }
+        if (lowerName.includes('sonnet')) {
+            return '🎵' + name.split(' ').pop();
+        }
+        if (lowerName.includes('opus')) {
+            return '🎼' + name.split(' ').pop();
+        }
+        if (lowerName.includes('gpt')) {
+            return '🟢' + name.replace(/gpt-?/i, '');
+        }
+
+        // 預設：取最後一個單字
+        return name.split(' ').pop() || name;
     }
 
     /**
