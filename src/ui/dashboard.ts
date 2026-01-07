@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 import { ImpactTracker, ImpactStats } from '../core/auto-approve/impact-tracker';
 import { PerformanceModeController } from '../core/auto-approve/performance-mode';
-import { AutoWakeupController, WakeupConfig } from '../core/auto-wakeup/controller';
+import { AutoWakeupControllerV2, ScheduleConfig } from '../core/auto-wakeup';
 import { ContextOptimizerController, ContextSuggestion } from '../core/context-optimizer/controller';
 import { QuotaMonitorController, QuotaData } from '../core/quota-monitor/controller';
 
@@ -24,7 +24,7 @@ export class DashboardPanel {
         private extensionUri: vscode.Uri,
         private impactTracker: ImpactTracker,
         private performanceMode: PerformanceModeController,
-        private wakeupController: AutoWakeupController,
+        private wakeupController: AutoWakeupControllerV2,
         private contextOptimizer: ContextOptimizerController,
         private quotaController: QuotaMonitorController,
         private isAutoApproveEnabled: boolean
@@ -50,7 +50,7 @@ export class DashboardPanel {
         extensionUri: vscode.Uri,
         impactTracker: ImpactTracker,
         performanceMode: PerformanceModeController,
-        wakeupController: AutoWakeupController,
+        wakeupController: AutoWakeupControllerV2,
         contextOptimizer: ContextOptimizerController,
         quotaController: QuotaMonitorController,
         isAutoApproveEnabled: boolean
@@ -108,7 +108,7 @@ export class DashboardPanel {
     private _update(): void {
         const stats = this.impactTracker.getStats();
         const wakeupConfig = this.wakeupController.getConfig();
-        const nextTrigger = this.wakeupController.calculateNextTriggerTime();
+        const nextTrigger = this.wakeupController.getNextRunTimeFormatted() || 'Not scheduled';
         const history = this.wakeupController.getHistory().slice(0, 5);
 
         this._panel.webview.html = this._getHtml(stats, wakeupConfig, nextTrigger, history);
@@ -159,8 +159,8 @@ export class DashboardPanel {
 
     private _getHtml(
         stats: ImpactStats,
-        wakeupConfig: WakeupConfig,
-        nextTrigger: Date,
+        wakeupConfig: { enabled: boolean; mode: string; workStartTime: string; models: string[] },
+        nextTrigger: string,
         history: any[]
     ): string {
         const timeSaved = this.impactTracker.getFormattedTimeSaved();

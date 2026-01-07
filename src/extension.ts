@@ -17,7 +17,7 @@ import { AutoApproveController } from './core/auto-approve/controller';
 import { QuotaMonitorController } from './core/quota-monitor/controller';
 import { ImpactTracker } from './core/auto-approve/impact-tracker';
 import { PerformanceModeController } from './core/auto-approve/performance-mode';
-import { AutoWakeupController } from './core/auto-wakeup/controller';
+import { AutoWakeupControllerV2, createAutoWakeupController, credentialStorage } from './core/auto-wakeup';
 import { ContextOptimizerController } from './core/context-optimizer/controller';
 import { ROITracker } from './core/analytics/roi-tracker';
 import { Relauncher } from './core/auto-approve/relauncher';
@@ -34,7 +34,7 @@ let autoApproveController: AutoApproveController | undefined;
 let quotaMonitorController: QuotaMonitorController | undefined;
 let impactTracker: ImpactTracker | undefined;
 let performanceMode: PerformanceModeController | undefined;
-let wakeupController: AutoWakeupController | undefined;
+let wakeupController: AutoWakeupControllerV2 | undefined;
 let contextOptimizer: ContextOptimizerController | undefined;
 let roiTracker: ROITracker | undefined;
 let relauncher: Relauncher | undefined;
@@ -98,14 +98,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         contextOptimizer = new ContextOptimizerController(context, logger, configManager);
         console.log('[DEBUG] Antigravity Plus: ContextOptimizerController initialized');
 
-        // 4. 初始化自動喚醒控制器
-        // Inject StatusBarManager for UI updates
-        wakeupController = new AutoWakeupController(context, logger, quotaMonitorController, statusBarManager);
+        // 4. 初始化自動喚醒控制器 V2 (Cockpit 對齊版)
+        // 先初始化 credentialStorage
+        credentialStorage.initialize(context);
+
+        // 使用新的 V2 控制器
+        wakeupController = createAutoWakeupController(context, logger, quotaMonitorController, statusBarManager);
         context.subscriptions.push(wakeupController);
 
-        // 啟動自動喚醒 (如果已啟用)
-        wakeupController.start().catch(err => {
-            logger?.error(`自動喚醒啟動失敗: ${err}`);
+        // 初始化自動喚醒
+        wakeupController.initialize().catch(err => {
+            logger?.error(`自動喚醒初始化失敗: ${err}`);
         });
 
         // 初始化 Relauncher (CDP Setup)
