@@ -261,6 +261,61 @@ export class OAuthService {
     }
 
     /**
+     * 獲取有效的 access_token（必要時自動刷新）
+     */
+    async getValidAccessToken(): Promise<string | null> {
+        const result = await this.getAccessTokenStatus();
+        return result.state === 'ok' ? result.token ?? null : null;
+    }
+
+    /**
+     * 獲取用戶郵箱
+     */
+    async fetchUserEmail(accessToken?: string): Promise<string | null> {
+        const token = accessToken || (await this.getValidAccessToken());
+        if (!token) {
+            return null;
+        }
+
+        return new Promise((resolve) => {
+            const url = new URL(OAUTH_CONFIG.USERINFO_URL);
+
+            const req = https.request(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            }, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', async () => {
+                    try {
+                        const json = JSON.parse(data);
+                        if (json.email) {
+                            // 更新儲存的 email
+                            const credential = await credentialStorage.getCredential();
+                            if (credential) {
+                                await credentialStorage.saveCredential({
+                                    ...credential,
+                                    email: json.email,
+                                });
+                            }
+                            resolve(json.email);
+                        } else {
+                            resolve(null);
+                        }
+                    } catch {
+                        resolve(null);
+                    }
+                });
+            });
+
+            req.on('error', () => resolve(null));
+            req.end();
+        });
+    }
+
+    /**
      * 建立授權 URL
      */
     private buildAuthUrl(clientId: string, port: number): string {

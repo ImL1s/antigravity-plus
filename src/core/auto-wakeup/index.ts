@@ -10,6 +10,7 @@ export { credentialStorage, CredentialStorage } from './credential-storage';
 export { OAuthService, createOAuthService } from './oauth-service';
 export { TriggerService, createTriggerService } from './trigger-service';
 export { SchedulerService, createSchedulerService } from './scheduler-service';
+export { CronParser } from './cron-parser';
 
 // Controller
 export { AutoWakeupControllerV2, createAutoWakeupController } from './controller-v2';

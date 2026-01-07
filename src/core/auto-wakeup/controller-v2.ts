@@ -328,6 +328,25 @@ export class AutoWakeupControllerV2 implements vscode.Disposable {
     }
 
     /**
+     * 將配置轉換為 crontab 表達式
+     */
+    configToCrontab(config?: Partial<ScheduleConfig>): string {
+        return this.schedulerService.configToCrontab(config ? { ...this.config, ...config } : this.config);
+    }
+
+    /**
+     * 驗證 crontab 表達式
+     */
+    validateCrontab(crontab: string): { valid: boolean; description?: string; error?: string } {
+        const result = this.schedulerService.validateCrontab(crontab);
+        return {
+            valid: result.valid,
+            description: result.description,
+            error: result.error,
+        };
+    }
+
+    /**
      * 處理來自 Webview 的訊息
      */
     async handleMessage(message: AutoTriggerMessage): Promise<void> {

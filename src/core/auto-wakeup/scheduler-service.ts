@@ -12,6 +12,7 @@ import {
     DEFAULT_SCHEDULE_CONFIG
 } from './types';
 import { Logger } from '../../utils/logger';
+import { CronParser } from './cron-parser';
 
 /**
  * 排程服務
@@ -434,6 +435,45 @@ export class SchedulerService {
                 }
                 return '未知模式';
         }
+    }
+
+    // ============================================
+    // CronParser 整合方法
+    // ============================================
+
+    /**
+     * 將配置轉換為 crontab 表達式
+     */
+    configToCrontab(config?: ScheduleConfig): string {
+        return CronParser.configToCrontab(config || this.config);
+    }
+
+    /**
+     * 驗證 crontab 表達式
+     */
+    validateCrontab(crontab: string): CrontabParseResult {
+        return CronParser.validate(crontab);
+    }
+
+    /**
+     * 每日時間轉 crontab
+     */
+    dailyToCrontab(times: string[]): string {
+        return CronParser.dailyToCrontab(times);
+    }
+
+    /**
+     * 每週配置轉 crontab
+     */
+    weeklyToCrontab(days: number[], times: string[]): string {
+        return CronParser.weeklyToCrontab(days, times);
+    }
+
+    /**
+     * 間隔模式轉 crontab
+     */
+    intervalToCrontab(intervalHours: number, startTime: string, endTime?: string): string {
+        return CronParser.intervalToCrontab(intervalHours, startTime, endTime);
     }
 
     /**
