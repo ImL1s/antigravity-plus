@@ -27,5 +27,6 @@
     "config.quotaMonitor.showGeminiPro.description": "Show Gemini Pro quota",
     "config.quotaMonitor.showGeminiFlash.description": "Show Gemini Flash quota",
     "config.quotaMonitor.showCostEstimate.description": "Show cost estimate",
+    "config.quotaMonitor.visibleModels.description": "Models to display in status bar (leave empty for all)",
     "config.ui.language.description": "Interface language"
 }

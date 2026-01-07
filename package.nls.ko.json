@@ -24,5 +24,6 @@
     "config.quotaMonitor.showGeminiPro.description": "Gemini Pro 할당량 표시",
     "config.quotaMonitor.showGeminiFlash.description": "Gemini Flash 할당량 표시",
     "config.quotaMonitor.showCostEstimate.description": "비용 추정치 표시",
+    "config.quotaMonitor.visibleModels.description": "상태 표시줄에 표시할 모델 (비워두면 전체 표시)",
     "config.ui.language.description": "인터페이스 언어"
 }

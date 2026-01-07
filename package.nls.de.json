@@ -24,5 +24,6 @@
     "config.quotaMonitor.showGeminiPro.description": "Gemini Pro Kontingent anzeigen",
     "config.quotaMonitor.showGeminiFlash.description": "Gemini Flash Kontingent anzeigen",
     "config.quotaMonitor.showCostEstimate.description": "Kostenschätzung anzeigen",
+    "config.quotaMonitor.visibleModels.description": "Anzuzeigende Modelle in der Statusleiste (leer lassen für alle)",
     "config.ui.language.description": "Oberflächensprache"
 }

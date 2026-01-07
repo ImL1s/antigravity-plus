@@ -24,5 +24,6 @@
     "config.quotaMonitor.showGeminiPro.description": "Gemini Pro クォータを表示",
     "config.quotaMonitor.showGeminiFlash.description": "Gemini Flash クォータを表示",
     "config.quotaMonitor.showCostEstimate.description": "コスト見積もりを表示",
+    "config.quotaMonitor.visibleModels.description": "ステータスバーに表示するモデル（空欄で全て表示）",
     "config.ui.language.description": "インターフェース言語"
 }

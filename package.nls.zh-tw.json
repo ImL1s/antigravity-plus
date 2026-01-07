@@ -25,5 +25,6 @@
     "config.quotaMonitor.showGeminiPro.description": "顯示 Gemini Pro 配額",
     "config.quotaMonitor.showGeminiFlash.description": "顯示 Gemini Flash 配額",
     "config.quotaMonitor.showCostEstimate.description": "顯示成本估算",
+    "config.quotaMonitor.visibleModels.description": "狀態列顯示的模型（留空則顯示全部）",
     "config.ui.language.description": "介面語言"
 }
