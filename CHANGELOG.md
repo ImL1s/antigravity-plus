@@ -1,5 +1,52 @@
 # Change Log
 
+## [0.0.33] - 2026-01-07
+- **Feature**: Complete Auto Wake-up feature Cockpit (sorting, filtering, sync) and fix reset bug.
+- **Feature**: Align dashboard quota monitor with cockpit.
+
+## [0.0.32] - 2026-01-07
+- **Feature**: Cockpit usage parity for all model usage tracking.
+
+## [0.0.31] - 2026-01-07
+- **Feature**: Model identification improvements.
+
+## [0.0.30] - 2026-01-07
+- **Feature**: Add backend push-based Dashboard updates.
+
+## [0.0.29] - 2026-01-07
+- **Fix**: Resolve 'Resets in: Reset' display bug and add Dashboard auto-refresh.
+
+## [0.0.28] - 2026-01-06
+- **Feature**: Add macOS persistent shell alias support to Relauncher and unit tests.
+
+## [0.0.27] - 2026-01-06
+- **Test**: Add comprehensive unit tests for providers.
+
+## [0.0.26] - 2026-01-06
+- **Fix**: Schedule preview display issues.
+
+## [0.0.25] - 2026-01-06
+- **Feature**: Interactive schedule editor for Auto Wake-up.
+
+## [0.0.24] - 2026-01-06
+- **Feature**: Auto-wakeup scheduler V3 with advanced scheduling.
+
+## [0.0.23] - 2026-01-05
+- **Feature**: Multi-language support for 10 languages.
+
+## [0.0.22] - 2026-01-05
+- **Feature**: Impact tracker and enhanced dashboard.
+
+## [0.0.21] - 2026-01-05
+- **Chore**: Bump version to fix Open VSX release.
+
+## [0.0.20] - 2026-01-05
+- **Docs**: Add GEMINI.md and CLAUDE.md with CI/CD instructions.
+- **CI**: Setup semantic-release for automated versioning and publishing.
+
+## [0.0.16-19] - 2026-01-05
+- **CI**: Various pipeline fixes for robust vscode mocking and module resolution.
+
 ## [0.0.15] - 2026-01-05
 - **New Feature**: Smart Wakeup V2 - Intelligent auto-wakeup based on cooldown and user activity.
 - **Fix**: Quota Monitor UI - Fixed loading spinner logic and added manual refresh button.

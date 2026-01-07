@@ -90,25 +90,33 @@ jobs:
     needs: package
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
 
     steps:
-      - name: Download VSIX Artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: antigravity-plus-vsix
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Publish to Open VSX
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download VSIX Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: antigravity-plus-vsix
+
+      - name: Run Semantic Release
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: |
-          if [ -z "$OVSX_PAT" ]; then
-            echo "::warning::Skipping release: OVSX_PAT secret is not set."
-            exit 0
-          fi
-          npm install -g ovsx
-          ovsx publish antigravity-plus.vsix -p "$OVSX_PAT"
+        run: npx semantic-release

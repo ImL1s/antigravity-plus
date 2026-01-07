@@ -12,27 +12,24 @@
 - **自動發布**：使用 `OVSX_PAT` secret 發布到 Open VSX Registry
 - **CI 流程**：Test → Package → Release
 
-### 版本號管理（重要！）
-> ⚠️ **每次發布前必須手動 bump 版本號**
+### 版本號管理（已自動化 ✅）
 
-Open VSX 不允許發布相同版本，版本號必須遞增。
+> ✅ **已啟用 Semantic Release 自動化版本管理**
 
-```bash
-# 查看當前 Open VSX 版本
-curl https://open-vsx.org/api/ImL1s/antigravity-plus | jq .version
+現在使用 `semantic-release` + `semantic-release-vsce` 自動管理版本號：
+- 版本號根據 commit message 自動決定
+- CHANGELOG.md 自動生成
+- 自動發布到 Open VSX Registry
 
-# 確保 package.json 版本大於線上版本
-```
+#### Conventional Commits 規範
 
-### 未來改進：Semantic Release（待實作）
+| Commit 類型 | 版本變更 | 範例 |
+|------------|---------|------|
+| `feat:` | minor (0.x.0) | `feat: add dark mode support` |
+| `fix:` | patch (0.0.x) | `fix: resolve login issue` |
+| `feat!:` 或 `BREAKING CHANGE:` | major (x.0.0) | `feat!: redesign API` |
 
-推薦使用 `semantic-release` + `semantic-release-vsce` 自動化版本管理：
-
-```bash
-npm install --save-dev semantic-release semantic-release-vsce @semantic-release/changelog @semantic-release/git
-```
-
-配置 `.releaserc.json`：
+#### 配置檔 `.releaserc.json`
 ```json
 {
   "branches": ["main"],
@@ -42,21 +39,21 @@ npm install --save-dev semantic-release semantic-release-vsce @semantic-release/
     "@semantic-release/changelog",
     ["semantic-release-vsce", {
       "packageVsix": true,
-      "publish": true,
+      "publish": false,
       "publishOpenVSX": true
     }],
     ["@semantic-release/git", {
-      "assets": ["CHANGELOG.md"],
-      "message": "chore(release): ${nextRelease.version}"
+      "assets": ["CHANGELOG.md", "package.json"],
+      "message": "chore(release): ${nextRelease.version} [skip ci]"
     }]
   ]
 }
 ```
 
-使用 Conventional Commits 規範：
-- `feat:` → minor 版本升級
-- `fix:` → patch 版本升級
-- `feat!:` 或 `BREAKING CHANGE:` → major 版本升級
+#### 查看線上版本
+```bash
+curl https://open-vsx.org/api/ImL1s/antigravity-plus | jq .version
+```
 
 ---
 
