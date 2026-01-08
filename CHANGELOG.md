@@ -1,3 +1,10 @@
+## [0.0.36](https://github.com/ImL1s/antigravity-plus/compare/v0.0.35...v0.0.36) (2026-01-08)
+
+
+### Bug Fixes
+
+* **ci:** downgrade semantic-release to v24 for stability ([3e2c537](https://github.com/ImL1s/antigravity-plus/commit/3e2c537808517855d4a719cd79aea1428f2023a3))
+
 ## [0.0.35](https://github.com/ImL1s/antigravity-plus/compare/v0.0.34...v0.0.35) (2026-01-08)
 
 
