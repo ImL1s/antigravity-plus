@@ -14,7 +14,11 @@
 
 # Change Log
 
-## [0.0.33] - 2026-01-07
+## [0.0.37] - 2026-01-08
+- chore: migrate to tag-based release workflow (aligned with Cockpit)
+- fix: resolve open-vsx publishing issues by using direct ovsx cli
+
+## [0.0.36] - 2026-01-087
 - **Feature**: Complete Auto Wake-up feature Cockpit (sorting, filtering, sync) and fix reset bug.
 - **Feature**: Align dashboard quota monitor with cockpit.
 

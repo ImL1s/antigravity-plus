@@ -84,39 +84,3 @@ jobs:
         with:
           name: antigravity-plus-vsix
           path: antigravity-plus.vsix
-
-  release:
-    name: Release to Open VSX
-    needs: package
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download VSIX Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: antigravity-plus-vsix
-
-      - name: Run Semantic Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx semantic-release
