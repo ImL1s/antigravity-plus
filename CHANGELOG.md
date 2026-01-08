@@ -1,3 +1,10 @@
+## [0.0.35](https://github.com/ImL1s/antigravity-plus/compare/v0.0.34...v0.0.35) (2026-01-08)
+
+
+### Bug Fixes
+
+* verify release pipeline ([48d5d60](https://github.com/ImL1s/antigravity-plus/commit/48d5d607b3d792e9768387cae47a74a9eb571467))
+
 ## [0.0.34](https://github.com/ImL1s/antigravity-plus/compare/v0.0.33...v0.0.34) (2026-01-07)
 
 
