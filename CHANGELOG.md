@@ -1,3 +1,14 @@
+# [0.1.0](https://github.com/ImL1s/antigravity-plus/compare/v0.0.37...v0.1.0) (2026-01-09)
+
+
+### Features
+
+* add auto-wakeup scheduler with daily, weekly, and interval modes ([a88ce10](https://github.com/ImL1s/antigravity-plus/commit/a88ce106c93c771aa53a67fe4cb8c776fa345410))
+* complete UI/UX with internationalization and context optimizer ([dba91c3](https://github.com/ImL1s/antigravity-plus/commit/dba91c3bad09a464f64d3024d2c7fd3d2cb41204))
+* finalize verification and update setup guide ([f00c02c](https://github.com/ImL1s/antigravity-plus/commit/f00c02c735bd3013498341413b338da3610b0dd9))
+* improve session timeline titles with context ([284ef42](https://github.com/ImL1s/antigravity-plus/commit/284ef423ff3bb15700c151cb3fc8ab8f602414df))
+* integrate semantic-release for automatic versioning ([28cea35](https://github.com/ImL1s/antigravity-plus/commit/28cea35429c13fd78da46b37014aecd8e6dc0b2a))
+
 # Change Log
 
 ## [0.0.37] - 2026-01-08
