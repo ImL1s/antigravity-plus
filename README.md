@@ -91,7 +91,10 @@ npm run compile
 
 2. **View Quota**: Check your quota in the Status Bar, click to open Dashboard
 
-3. **Configure Wake-up**: Open Settings → Antigravity Plus → Auto Wake-up
+3. **Configure Wake-up**: 
+   - Open Settings → Antigravity Plus → Auto Wake-up
+   - Set `OAuth Setup` with your Google Cloud Client ID & Secret (**Required**)
+   - Toggle "Auto Wake-up" monitoring
 
 ### Commands
 
