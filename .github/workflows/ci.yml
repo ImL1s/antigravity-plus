@@ -84,3 +84,37 @@ jobs:
         with:
           name: antigravity-plus-vsix
           path: antigravity-plus.vsix
+
+  release:
+    name: Semantic Release
+    needs: package
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Compile
+        run: npm run compile
+      
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx semantic-release
