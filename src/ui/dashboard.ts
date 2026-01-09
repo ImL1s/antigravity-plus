@@ -10,6 +10,7 @@ import { PerformanceModeController } from '../core/auto-approve/performance-mode
 import { AutoWakeupControllerV2, ScheduleConfig } from '../core/auto-wakeup';
 import { ContextOptimizerController, ContextSuggestion } from '../core/context-optimizer/controller';
 import { QuotaMonitorController, QuotaData } from '../core/quota-monitor/controller';
+import { t } from '../i18n';
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;
@@ -500,7 +501,7 @@ export class DashboardPanel {
     <!-- Auto Accept -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">⚡ Auto Accept</span>
+            <span class="card-title">⚡ ${t('dashboard.autoApprove.title')}</span>
             <div class="toggle ${this.isAutoApproveEnabled ? 'on' : ''}" onclick="toggleAutoApprove()"></div>
         </div>
     </div>
@@ -508,25 +509,25 @@ export class DashboardPanel {
     <!-- Impact Dashboard -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">📊 Impact Dashboard</span>
-            <span class="reset-badge">Resets ${resetIn}</span>
+            <span class="card-title">📊 ${t('dashboard.impact.title')}</span>
+            <span class="reset-badge">${t('dashboard.impact.resets')} ${resetIn}</span>
         </div>
         <div class="stats-grid">
             <div class="stat">
                 <div class="stat-value">${stats.clicksSaved.toLocaleString()}</div>
-                <div class="stat-label">Clicks Saved</div>
+                <div class="stat-label">${t('dashboard.impact.clicksSaved')}</div>
             </div>
             <div class="stat">
                 <div class="stat-value">${timeSaved}</div>
-                <div class="stat-label">Time Saved</div>
+                <div class="stat-label">${t('dashboard.impact.timeSaved')}</div>
             </div>
             <div class="stat">
                 <div class="stat-value">${stats.sessions}</div>
-                <div class="stat-label">Sessions</div>
+                <div class="stat-label">${t('dashboard.impact.sessions')}</div>
             </div>
             <div class="stat">
                 <div class="stat-value ${stats.blocked > 0 ? 'warning' : ''}">${stats.blocked}</div>
-                <div class="stat-label">Blocked</div>
+                <div class="stat-label">${t('dashboard.impact.blocked')}</div>
             </div>
         </div>
     </div>
@@ -534,24 +535,24 @@ export class DashboardPanel {
     <!-- Quota Monitor -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">📊 Quota Monitor</span>
-            <button class="btn btn-secondary" onclick="refreshQuota()">🔄 Refresh</button>
+            <span class="card-title">📊 ${t('dashboard.quota.title')}</span>
+            <button class="btn btn-secondary" onclick="refreshQuota()">🔄 ${t('dashboard.quota.refresh')}</button>
         </div>
         <div id="quota-content" style="text-align: center; padding: 20px;">
             <div class="spinner"></div>
-            <span>Waiting for quota data...</span>
+            <span>${t('statusBar.quota.loading')}</span>
         </div>
     </div>
 
     <!-- Performance Mode -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">⚡ Performance Mode</span>
+            <span class="card-title">⚡ ${t('dashboard.performance.title')}</span>
         </div>
         <div class="slider-container">
             <div class="slider-labels">
-                <span>Instant</span>
-                <span>Battery Saving</span>
+                <span>${t('dashboard.performance.instant')}</span>
+                <span>${t('dashboard.performance.batterySaving')}</span>
             </div>
             <input type="range" class="slider" min="0" max="100" value="${sliderValue}" 
                    oninput="updatePerformance(this.value)">
@@ -559,11 +560,10 @@ export class DashboardPanel {
         </div>
     </div>
 
-    <!-- Context Optimizer (Hidden) -->
-    <!--
+    <!-- Context Optimizer -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">🔍 Context Optimizer</span>
+            <span class="card-title">🔍 ${t('dashboard.context.title')}</span>
         </div>
         <div id="suggestions-container">
             ${this._suggestions.length > 0 ?
@@ -572,20 +572,19 @@ export class DashboardPanel {
                         <span>${s.file.fsPath.split(/[\\/]/).pop()}</span>
                         <span class="suggestion-action ${s.action}">${s.action.toUpperCase()}</span>
                     </div>
-                `).join('') : '<p style="font-size:12px;color:#888;">尚未分析</p>'
+                `).join('') : `<p style="font-size:12px;color:#888;">${t('dashboard.context.notAnalyzed')}</p>`
             }
         </div>
         <div class="btn-group">
-            <button class="btn btn-primary" onclick="analyzeContext()">Analyze Now</button>
-            ${this._suggestions.length > 0 ? '<button class="btn btn-secondary" onclick="applyOptimization()">Apply</button>' : ''}
+            <button class="btn btn-primary" onclick="analyzeContext()">${t('dashboard.context.analyze')}</button>
+            ${this._suggestions.length > 0 ? `<button class="btn btn-secondary" onclick="applyOptimization()">${t('dashboard.context.apply')}</button>` : ''}
         </div>
     </div>
-    -->
 
     <!-- Activity Timeline -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">🕒 Activity Timeline</span>
+            <span class="card-title">🕒 ${t('dashboard.timeline.title')}</span>
         </div>
         <div class="timeline">
             ${(stats.activityLog || []).slice(0, 5).map(log => `
@@ -600,27 +599,27 @@ export class DashboardPanel {
     <!-- Auto Wake-up -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">🔔 Auto Wake-up</span>
+            <span class="card-title">🔔 ${t('dashboard.wakeup.title')}</span>
             <div class="toggle ${wakeupConfig.enabled ? 'on' : ''}" onclick="toggleWakeup()"></div>
         </div>
         <div class="wakeup-info">
-            <span>Next Trigger:</span>
+            <span>${t('dashboard.wakeup.nextTrigger')}:</span>
             <strong>${nextTrigger.toLocaleString()}</strong>
         </div>
         <div class="wakeup-info">
-            <span>Mode:</span>
+            <span>${t('dashboard.wakeup.mode')}:</span>
             <strong>${wakeupConfig.mode}</strong>
         </div>
         <div class="btn-group">
-            <button class="btn btn-secondary" onclick="testWakeup()">Test Now</button>
-            <button class="btn btn-secondary" onclick="showHistory()">History (${history.length})</button>
+            <button class="btn btn-secondary" onclick="testWakeup()">${t('dashboard.wakeup.testNow')}</button>
+            <button class="btn btn-secondary" onclick="showHistory()">${t('dashboard.wakeup.history')} (${history.length})</button>
         </div>
     </div>
 
     <!-- Safety Rules -->
     <div class="card">
         <div class="card-header">
-            <span class="card-title">🛡️ Safety Rules</span>
+            <span class="card-title">🛡️ ${t('dashboard.safety.title')}</span>
         </div>
         <div class="safety-rules">
             <code>rm -rf /</code>
