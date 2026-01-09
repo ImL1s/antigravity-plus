@@ -88,12 +88,12 @@ export class ImpactTracker implements vscode.Disposable {
     /**
      * 開始新的 session
      */
-    public startSession(): string {
+    public startSession(description?: string): string {
         const sessionId = Date.now().toString(36);
         this.currentSessionId = sessionId;
         this.sessionStartTime = new Date();
         this.stats.sessions++;
-        this.logActivity('session', '開始新的開發 Session');
+        this.logActivity('session', description || '開始新的開發 Session');
         this.saveStats();
         return sessionId;
     }

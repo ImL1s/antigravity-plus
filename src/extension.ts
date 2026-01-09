@@ -122,7 +122,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         console.log('[DEBUG] Antigravity Plus: AutoWakeupController initialized');
 
         // 開始新 session
-        impactTracker.startSession();
+        const workspaceName = vscode.workspace.name || 'Untitled Workspace';
+        impactTracker.startSession(`Workspace: ${workspaceName}`);
 
         // 監聽 Performance Mode 變更
         performanceMode.onChange((interval) => {
@@ -317,7 +318,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('antigravity-plus.resetSession', () => {
             quotaMonitorController?.resetSession();
-            impactTracker?.startSession();
+            impactTracker?.startSession(t('notifications.session.reset') || '手動重置 Session');
             vscode.window.showInformationMessage(t('notifications.session.reset'));
         })
     );
