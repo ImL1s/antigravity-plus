@@ -9,17 +9,19 @@ Thumbs.db
 *.txt
 .eslintcache
 .vscode/
-run_jobs_*.json
-ubuntu_run*.log
-# Competitor analysis (reference only, not for commit)
-docs/competitor-analysis/
-*.vsix
 
 # CI Debug files
 run_jobs_*.json
 ubuntu_run*.log
 
+# Competitor analysis (reference only, not for commit)
+docs/competitor-analysis/
+
 # Environment files
 .env
 .env.*
 !.env.example
+
+# Test coverage
+.nyc_output/
+coverage/

@@ -124,6 +124,9 @@ export class SchedulerService {
      * 計算下次觸發時間
      */
     calculateNextTriggerTime(fromTime?: Date): Date | null {
+        if (!this.config.enabled) {
+            return null;
+        }
         const now = fromTime || new Date();
 
         switch (this.config.repeatMode) {

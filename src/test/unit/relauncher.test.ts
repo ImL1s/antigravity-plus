@@ -31,7 +31,7 @@ describe('Unit Tests - Relauncher', () => {
         mockLogger = {
             info: () => { },
             warn: () => { },
-            error: () => { },
+            error: (msg: string) => console.error('MOCK_LOGGER_ERROR:', msg),
             debug: () => { }
         };
 
@@ -61,7 +61,7 @@ describe('Unit Tests - Relauncher', () => {
     });
 
     describe('Linux Strategy (.desktop modification)', () => {
-        const userAppsDir = '/home/user/.local/share/applications';
+        const userAppsDir = path.join('/home/user', '.local', 'share', 'applications');
         const desktopContent = '[Desktop Entry]\nExec=code %F\n';
 
         it('should modify existing user .desktop file', async () => {
@@ -86,7 +86,7 @@ describe('Unit Tests - Relauncher', () => {
         });
 
         it('should copy from system to user directory if user file is missing', async () => {
-            const systemFile = '/usr/share/applications/code.desktop';
+            const systemFile = path.join('/usr', 'share', 'applications', 'code.desktop');
             const userFile = path.join(userAppsDir, 'code.desktop');
 
             mockFs.existsSync = (p: string) => p === systemFile || p === userAppsDir;
@@ -139,12 +139,12 @@ describe('Unit Tests - Relauncher', () => {
 
         it('should append alias to .zshrc', async () => {
             mockOs.platform = () => 'darwin';
-            const zshrc = '/home/user/.zshrc';
+            const zshrc = path.join('/home/user', '.zshrc');
 
             let appendedFile = '';
             let appendedContent = '';
 
-            mockFs.existsSync = (p: string) => p === zshrc;
+            mockFs.existsSync = (p: string) => path.normalize(p) === path.normalize(zshrc);
             mockFs.readFileSync = () => 'export PATH=$PATH:/bin\n';
             mockFs.appendFileSync = (p: string, c: string) => {
                 appendedFile = p;
@@ -160,11 +160,11 @@ describe('Unit Tests - Relauncher', () => {
 
         it('should replace existing alias in .zshrc', async () => {
             mockOs.platform = () => 'darwin';
-            const zshrc = '/home/user/.zshrc';
+            const zshrc = path.join('/home/user', '.zshrc');
             const existing = "alias code='code --something-else'\n";
 
             let writtenContent = '';
-            mockFs.existsSync = (p: string) => p === zshrc;
+            mockFs.existsSync = (p: string) => path.normalize(p) === path.normalize(zshrc);
             mockFs.readFileSync = () => existing;
             mockFs.writeFileSync = (p: string, c: string) => {
                 writtenContent = c;
