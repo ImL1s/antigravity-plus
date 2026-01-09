@@ -47,7 +47,7 @@ let configManager: ConfigManager | undefined;
  * 擴展啟動
  */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    console.log('[DEBUG] Antigravity Plus: activate() started');
+
     try {
 
         // 初始化 i18n
@@ -83,20 +83,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             })
         );
 
-        console.log('[DEBUG] Antigravity Plus: Basic tools initialized');
+
         // 初始化 UI
         statusBarManager = new StatusBarManager(context);
-        console.log('[DEBUG] Antigravity Plus: StatusBarManager initialized');
+
 
         // 初始化控制器
         autoApproveController = new AutoApproveController(context, logger, configManager);
-        console.log('[DEBUG] Antigravity Plus: AutoApproveController initialized');
+
         quotaMonitorController = new QuotaMonitorController(context, logger, configManager, statusBarManager);
-        console.log('[DEBUG] Antigravity Plus: QuotaMonitorController initialized');
+
 
         // 初始化 Context Optimizer
         contextOptimizer = new ContextOptimizerController(context, logger, configManager);
-        console.log('[DEBUG] Antigravity Plus: ContextOptimizerController initialized');
+
 
         // 4. 初始化自動喚醒控制器 V2 (Cockpit 對齊版)
         // 先初始化 credentialStorage
@@ -119,7 +119,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         announcementService.initialize(context);
         context.subscriptions.push(announcementService);
 
-        console.log('[DEBUG] Antigravity Plus: AutoWakeupController initialized');
+
 
         // 開始新 session
         const workspaceName = vscode.workspace.name || 'Untitled Workspace';
@@ -131,9 +131,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         });
 
         // 註冊指令
-        console.log('[DEBUG] Antigravity Plus: Registering commands...');
+
         registerCommands(context);
-        console.log('[DEBUG] Antigravity Plus: Commands registered');
+
 
         // 監聽設定變更
         context.subscriptions.push(
@@ -178,7 +178,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // wakeupController.start();
 
         logger.info('Antigravity Plus 已啟動');
-        console.log('[DEBUG] Antigravity Plus: activate() finished');
+
     } catch (error) {
         console.error('[ERROR] Antigravity Plus: Activation failed!', error);
         throw error;

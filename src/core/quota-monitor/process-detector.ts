@@ -133,7 +133,7 @@ export class WindowsStrategy implements PlatformStrategy {
             return candidates;
         } catch (e) {
             console.error('JSON Parse Error:', e);
-            console.log('Attempted to parse:', cleanStdout ? cleanStdout.trim() : 'null');
+            // console.log('Attempted to parse:', cleanStdout ? cleanStdout.trim() : 'null');
             return [];
         }
     }
