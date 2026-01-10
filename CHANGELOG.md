@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/ImL1s/antigravity-plus/compare/v0.1.0...v0.2.0) (2026-01-10)
+
+
+### Features
+
+* port and refactor unified auth bar UI from cockpit ([7f1e5b4](https://github.com/ImL1s/antigravity-plus/commit/7f1e5b49b55ec54da6e052efe65e4c87b769dc3f))
+
 # [0.1.0](https://github.com/ImL1s/antigravity-plus/compare/v0.0.37...v0.1.0) (2026-01-09)
 
 
