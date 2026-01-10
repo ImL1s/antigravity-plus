@@ -10,7 +10,8 @@ import { PerformanceModeController } from '../core/auto-approve/performance-mode
 import { AutoWakeupControllerV2, ScheduleConfig } from '../core/auto-wakeup';
 import { ContextOptimizerController, ContextSuggestion } from '../core/context-optimizer/controller';
 import { QuotaMonitorController, QuotaData } from '../core/quota-monitor/controller';
-import { t } from '../i18n';
+import { ANTIGRAVITY_AUTH_UI_SCRIPT, AUTH_UI_CSS } from './webview-resources';
+import { t, getCurrentStrings } from '../i18n';
 
 export class DashboardPanel {
     public static currentPanel: DashboardPanel | undefined;
@@ -154,6 +155,28 @@ export class DashboardPanel {
                     const data = this.quotaController.getQuotaData();
                     this._panel.webview.postMessage({ command: 'updateQuota', data });
                 });
+                break;
+
+            // Auth UI Handlers
+            case 'autoTrigger.authorize':
+            case 'autoTrigger.addAccount':
+            case 'autoTrigger.reauthorizeAccount':
+                this.wakeupController.startAuthorization().then(success => {
+                    if (success) {
+                        vscode.window.showInformationMessage(t('notifications.auth.success') || 'Authorization successful');
+                        this.quotaController.refresh(); // Refresh quota after auth
+                    }
+                });
+                break;
+            case 'autoTrigger.removeAccount':
+                this.wakeupController.revokeAuthorization().then(() => {
+                    vscode.window.showInformationMessage(t('notifications.auth.revoked') || 'Logged out');
+                    this.quotaController.refresh();
+                });
+                break;
+            case 'autoTrigger.switchAccount':
+                vscode.window.showInformationMessage('Multi-account switching is not yet supported in this version. Please re-authorize.');
+                this.wakeupController.startAuthorization();
                 break;
         }
     }
@@ -490,12 +513,20 @@ export class DashboardPanel {
             color: #888;
             float: right;
         }
+
+        /* Inject Auth UI CSS */
+        ${AUTH_UI_CSS}
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Antigravity Plus</h1>
         <span class="version">v1.0.0</span>
+    </div>
+
+    <!-- Auth Bar -->
+    <div id="quota-auth-card" class="quota-auth-card" style="margin-bottom: 20px;">
+        <div id="quota-auth-row" class="quota-auth-row"></div>
     </div>
 
     <!-- Auto Accept -->
@@ -636,7 +667,20 @@ export class DashboardPanel {
     </div>
 
     <script>
+        window.__i18n = ${JSON.stringify(getCurrentStrings())};
+        ${ANTIGRAVITY_AUTH_UI_SCRIPT}
+
         const vscode = acquireVsCodeApi();
+        let authUi;
+
+        // Initialize Auth UI
+        try {
+            authUi = new PlusAuthUI(vscode);
+            authUi.renderAuthRow(document.getElementById('quota-auth-row'));
+        } catch (e) {
+            console.error('Failed to init Auth UI', e);
+        }
+        
         
         function toggleAutoApprove() {
             vscode.postMessage({ command: 'toggleAutoApprove' });
@@ -690,6 +734,19 @@ export class DashboardPanel {
                     content.innerHTML = html || 'No quota data available';
                 } else {
                     content.innerHTML = '<span style="color: #ef4444">Failed to load quota</span>';
+                }
+
+                // Update Auth UI
+                if (authUi && message.data) {
+                    const userInfo = message.data.userInfo;
+                    // Construct authorization object compatible with Cockpit Auth UI
+                    const authorization = {
+                        isAuthorized: !!userInfo,
+                        activeAccount: userInfo ? userInfo.email : null,
+                        accounts: userInfo ? [{ email: userInfo.email }] : []
+                    };
+                    authUi.updateState(authorization, false); // Disable sync toggle for now
+                    authUi.renderAuthRow(document.getElementById('quota-auth-row'));
                 }
             }
         });

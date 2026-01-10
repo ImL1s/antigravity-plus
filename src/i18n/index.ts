@@ -134,6 +134,13 @@ export function t(key: string, ...args: (string | number)[]): string {
 }
 
 /**
+ * 取得當前語系的所有字串
+ */
+export function getCurrentStrings(): Record<string, string> {
+    return currentStrings;
+}
+
+/**
  * 取得當前語系
  */
 export function getCurrentLocale(): SupportedLocale {
