@@ -26,6 +26,10 @@
 
 ---
 
+> **⚠️ Maintenance status (2026-08)**: This extension is **no longer actively maintained** (last release: 2026-01). It was built against the Antigravity IDE's webview via CDP; **compatibility with Antigravity 2.0 (May 2026) is unverified**. It remains published on Open VSX and existing installs keep working, but there is no maintenance plan. Note that Antigravity 2.0 / CLI now natively remember approved permissions per conversation (permission memory + allowlists) and expose quota via `/quota` — most of this extension's functionality overlaps with those native features.
+
+---
+
 ## ✨ Features
 
 ### 🚀 Auto Accept
